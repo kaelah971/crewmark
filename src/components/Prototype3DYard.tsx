@@ -5,33 +5,24 @@ import {
   type ProductionYard3DSceneResult,
   type ProductionYardLoadingProgress,
 } from "../lib/yard3dProductionScene";
-import { resolveActiveCover, loadCoverRecord, loadCover02Record } from "../lib/coverStorage";
-import { loadReceiptState } from "../lib/receiptStorage";
 import { X, Box, Car, Monitor, RotateCcw, Loader2 } from "lucide-react";
 
 export interface Prototype3DYardProps {
   onBackToHub?: () => void;
   onOpenTerminal?: () => void;
   onOpenPrintBay?: () => void;
+  activeCoverImage?: string | null;
 }
 
 export default function Prototype3DYard({
   onBackToHub,
   onOpenTerminal,
   onOpenPrintBay,
+  activeCoverImage = null,
 }: Prototype3DYardProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ProductionYard3DSceneResult | null>(null);
-
-  // Active cover resolution from real crewmark storage
-  const [activeCoverUrl] = useState<string | null>(() => {
-    const c1 = loadCoverRecord();
-    const c2 = loadCover02Record();
-    const receipts = loadReceiptState();
-    const active = resolveActiveCover(c1, c2, receipts.cover01Burned);
-    return active ? active.image : null;
-  });
-
+  const activeCoverUrl = activeCoverImage;
   const [activeModal, setActiveModal] = useState<"terminal" | "print-bay" | "vehicle" | "crate" | null>(null);
   const [cameraMode, setCameraMode] = useState<"orbit" | "focus-vehicle" | "focus-crate" | "focus-terminal">("orbit");
   const [loading, setLoading] = useState(true);

@@ -1,14 +1,10 @@
+import type { CoverAssetRef } from "../lib/coverAssetStore";
 import type { CoverAnalysis, CoverCheckStatus } from "../lib/coverAnalysis";
+import { createDisguisePackage, type DisguisePackage } from "../lib/disguisePackage";
 import type { CoverRecord } from "../lib/coverStorage";
-import type { CreativeMetrics } from "../lib/creativeMetrics";
-import type { DisguisePackage } from "../lib/disguisePackage";
 import type { VehicleLivery } from "../lib/vehicleLivery";
-import { createDisguisePackage } from "../lib/disguisePackage";
-
-/**
- * JOB//01 mission logic (P3.5A-R.3 + P6) — pure and deterministic.
- *
- * The checkpoint classifies the FROZEN cover snapshot taken at START JOB,
+import type { CreativeMetrics } from "../lib/creativeMetrics";
+/** The checkpoint classifies the FROZEN cover snapshot taken at START JOB,
  * never live pixels: re-editing COVER//01 later cannot rewrite history.
  * Same analysis always returns the same branch, heat, and reward.
  */
@@ -125,6 +121,7 @@ export function classifyCreativeCheckpoint(metrics: CreativeMetrics): Checkpoint
 /** Frozen cover & disguise package reference captured at START JOB. Later edits can't touch it. */
 export interface MissionSnapshot {
   readonly coverImage: string;
+  readonly coverAssetRef?: CoverAssetRef;
   readonly coverLockedAt: string;
   readonly analysis: CoverAnalysis;
   readonly metrics?: CreativeMetrics;
@@ -163,6 +160,7 @@ export function startMissionState(cover: CoverRecord, pkg?: DisguisePackage): Mi
     started: true,
     snapshot: {
       coverImage: cover.image,
+      coverAssetRef: cover.assetRef,
       coverLockedAt: cover.lockedAt,
       analysis: {
         ...cover.analysis,

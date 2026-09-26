@@ -1,3 +1,4 @@
+import { getCoverAsset, putCoverAsset, type CoverAssetRef } from "./coverAssetStore";
 import { getCoverTemplate, isCoverTemplateId, type CoverTemplateId } from "./coverTemplates";
 import { isFrontId, type FrontId } from "./fronts";
 import {
@@ -29,6 +30,8 @@ export interface DisguisePackage {
   readonly companyName: string;
   readonly tagline: string;
   readonly identityArtwork: string;
+  /** Durable artwork ref; present after the IndexedDB persistence path hydrates. */
+  readonly identityArtworkRef?: CoverAssetRef;
   readonly identityMetadata: {
     readonly frontId?: FrontId;
     readonly personality?: string;
@@ -272,6 +275,46 @@ export function replaceDisguisePackage(slot: DisguisePackageSlot, pkg: DisguiseP
   }
 }
 
+interface PersistedDisguisePackage extends Omit<DisguisePackage, "identityArtwork" | "vehicleLivery"> {
+  readonly identityArtwork?: string;
+  readonly identityArtworkRef: CoverAssetRef;
+  readonly vehicleLivery: Omit<VehicleLivery, "sourceCoverDataUrl" | "doorGraphicDataUrl" | "hoodGraphicDataUrl" | "rearGraphicDataUrl" | "sideStripeDataUrl"> & {
+    readonly sourceCoverDataUrl?: string;
+    readonly doorGraphicDataUrl?: string;
+    readonly hoodGraphicDataUrl?: string;
+    readonly rearGraphicDataUrl?: string;
+    readonly sideStripeDataUrl?: string;
+  };
+}
+
+function refStoragePayload(pkg: DisguisePackage, ref: CoverAssetRef): PersistedDisguisePackage {
+  const payload = storagePayload(pkg);
+  return {
+    ...payload,
+    identityArtwork: undefined,
+    identityArtworkRef: ref,
+  };
+}
+
+/** Durable package write: artwork bytes live in IndexedDB; local/session storage keeps metadata only. */
+export async function replaceDisguisePackageAsync(slot: DisguisePackageSlot, pkg: DisguisePackage): Promise<boolean> {
+  if (!validateDisguisePackage(pkg, slot) || typeof window === "undefined") return false;
+  try {
+    const ref = await putCoverAsset(pkg.identityArtwork);
+    const serialized = JSON.stringify(refStoragePayload(pkg, ref));
+    window.localStorage.setItem(packageKey(slot), serialized);
+    try {
+      window.sessionStorage?.removeItem(packageKey(slot));
+    } catch {
+      // Local storage is authoritative when available.
+    }
+    return true;
+  } catch (err) {
+    console.warn("[crewmark] Failed to save durable disguise package:", err);
+    return false;
+  }
+}
+
 
 function packageStorageCandidates(key: string): string[] {
   const values: string[] = [];
@@ -330,4 +373,34 @@ export function clearDisguisePackages(): void {
   } catch (err) {
     console.warn("[crewmark] Failed to clear disguise packages:", err);
   }
+}
+/** Hydrates a ref-based package without exposing IndexedDB details to consumers. */
+export async function loadDisguisePackageAsync(slot: DisguisePackageSlot): Promise<DisguisePackage | null> {
+  if (typeof window === "undefined") return null;
+  for (const raw of packageStorageCandidates(packageKey(slot))) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const ref = parsed.identityArtworkRef as CoverAssetRef | undefined;
+      const artwork = ref ? await getCoverAsset(ref) : typeof parsed.identityArtwork === "string" ? parsed.identityArtwork : null;
+      if (!artwork) continue;
+      const normalized = normalizeDisguisePackage(
+        {
+          ...parsed,
+          identityArtwork: artwork,
+          vehicleLivery: {
+            ...(typeof parsed.vehicleLivery === "object" && parsed.vehicleLivery !== null ? parsed.vehicleLivery : {}),
+            sourceCoverDataUrl: artwork,
+          },
+        },
+        slot,
+      );
+      if (!normalized) continue;
+      const hydrated = { ...normalized, ...(ref ? { identityArtworkRef: ref } : {}) };
+      if (!ref) await replaceDisguisePackageAsync(slot, hydrated);
+      return hydrated;
+    } catch {
+      continue;
+    }
+  }
+  return null;
 }

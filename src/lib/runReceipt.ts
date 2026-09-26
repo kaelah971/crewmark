@@ -5,18 +5,20 @@
 // is pure and deterministic (same input, same record); rendering turns that
 // record into a shareable 1600x1000 PNG with a dark terminal aesthetic.
 
+import { getCoverAsset, putCoverAsset, type CoverAssetRef } from "./coverAssetStore";
 import type { CoverVersion } from "./coverStorage";
 import type { CreativeMetrics } from "./creativeMetrics";
 import type { ChosenFrontRecord } from "./fronts";
 import type { CheckpointBranch } from "../world/mission";
-
 export interface RunReceipt {
   readonly receiptId: string;
   readonly runId: string;
   readonly front: ChosenFrontRecord;
   readonly coverVersion: CoverVersion;
   readonly coverDataUrl: string;
+  readonly coverAssetRef?: CoverAssetRef;
   readonly cover01DataUrl?: string | null;
+  readonly cover01AssetRef?: CoverAssetRef | null;
   readonly metrics: CreativeMetrics | null;
   readonly checkpoint: CheckpointBranch | null;
   readonly signatureDistance: number | null;
@@ -27,7 +29,6 @@ export interface RunReceipt {
   readonly completedAt: string;
   readonly shareText: string;
 }
-
 export interface RunReceiptInput {
   readonly receiptId?: string;
   readonly runId: string;
@@ -60,7 +61,9 @@ export function loadRunReceipt(): RunReceipt | null {
   try {
     const raw = window.localStorage.getItem(RUN_RECEIPT_STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as RunReceipt;
+    const parsed = JSON.parse(raw) as RunReceipt;
+    if (parsed.coverAssetRef) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -82,6 +85,43 @@ export function clearRunReceipt(): void {
     window.localStorage.removeItem(RUN_RECEIPT_STORAGE_KEY);
   } catch {
     // ignore
+  }
+}
+
+export async function saveRunReceiptAsync(receipt: RunReceipt): Promise<boolean> {
+  if (typeof window === "undefined" || !window.localStorage) return false;
+  try {
+    const coverAssetRef = receipt.coverAssetRef ?? await putCoverAsset(receipt.coverDataUrl);
+    const cover01AssetRef = receipt.cover01DataUrl ? receipt.cover01AssetRef ?? await putCoverAsset(receipt.cover01DataUrl) : null;
+    const persisted = { ...receipt, coverDataUrl: undefined, cover01DataUrl: undefined, coverAssetRef, cover01AssetRef };
+    window.localStorage.setItem(RUN_RECEIPT_STORAGE_KEY, JSON.stringify(persisted));
+    return true;
+  } catch (err) {
+    console.warn("[crewmark] Durable run receipt save failed.", err);
+    return false;
+  }
+}
+
+export async function loadRunReceiptAsync(): Promise<RunReceipt | null> {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(RUN_RECEIPT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RunReceipt;
+    if (!parsed.coverAssetRef) {
+      if (!parsed.coverDataUrl) return null;
+      const coverAssetRef = await putCoverAsset(parsed.coverDataUrl);
+      const cover01AssetRef = parsed.cover01DataUrl ? await putCoverAsset(parsed.cover01DataUrl) : null;
+      const migrated = { ...parsed, coverAssetRef, cover01AssetRef };
+      await saveRunReceiptAsync(migrated);
+      return migrated;
+    }
+    const coverDataUrl = await getCoverAsset(parsed.coverAssetRef);
+    const cover01DataUrl = parsed.cover01AssetRef ? await getCoverAsset(parsed.cover01AssetRef) : null;
+    if (!coverDataUrl || (parsed.cover01AssetRef && !cover01DataUrl)) return null;
+    return { ...parsed, coverDataUrl, cover01DataUrl };
+  } catch {
+    return null;
   }
 }
 

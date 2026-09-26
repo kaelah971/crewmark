@@ -58,7 +58,7 @@ export interface ForgeryBayProps {
     dataUrl: string,
     analysis: CoverAnalysis,
     creativeMetrics?: CreativeMetrics,
-  ) => void;
+  ) => void | Promise<void>;
   /** Return to the yard without saving. */
   onBack: () => void;
   /** P3.5A-R.5: rotation mode flag (first-time rotation from burned Cover01) */
@@ -73,13 +73,13 @@ export interface ForgeryBayProps {
     analysis: CoverAnalysis,
     signature: VisualSignatureComparison,
     creativeMetrics?: CreativeMetrics,
-  ) => void;
+  ) => void | Promise<void>;
   chosenFront?: ChosenFrontRecord | null;
   disguisePackage?: DisguisePackage | null;
   startInGallery?: boolean;
   packageSlot?: DisguisePackageSlot;
-  onSelectArtwork?: (dataUrl: string, templateId: CoverTemplateId | null, slot: DisguisePackageSlot) => void;
-  onOpenVehicleEditor?: () => void;
+  onSelectArtwork?: (dataUrl: string, templateId: CoverTemplateId | null, slot: DisguisePackageSlot) => void | Promise<void>;
+  onOpenVehicleEditor?: () => void | Promise<void>;
 
 }
 
@@ -242,8 +242,8 @@ export default function ForgeryBay({
         : await loadCoverTemplateDataUrl(templateId);
       setCurrentImage(canonicalDataUrl);
       setEditorKey((k) => k + 1);
-      onSelectArtwork?.(canonicalDataUrl, templateId, activePackageSlot);
-      void runCheckOnDataUrl(canonicalDataUrl);
+      await onSelectArtwork?.(canonicalDataUrl, templateId, activePackageSlot);
+      await runCheckOnDataUrl(canonicalDataUrl);
       setNotice(`${label} loaded onto canvas. Remix it.`);
     } catch {
       setNotice(`Could not load ${label}.`);
@@ -260,7 +260,7 @@ export default function ForgeryBay({
         frontId: chosenFrontRecord?.resolvedFrontId,
       });
       setCurrentImage(res.dataUrl);
-      onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
+      await onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
       setEditorKey((k) => k + 1);
       setReady(false);
       setNotice("Blank vinyl stock loaded onto canvas.");
@@ -282,7 +282,7 @@ export default function ForgeryBay({
       });
       setCurrentImage(res.dataUrl);
       setEditorKey((k) => k + 1);
-      onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
+      await onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
       setReady(false);
       setNotice(`Loaded ${frontName} starter template.`);
       void runCheckOnDataUrl(res.dataUrl);
@@ -312,7 +312,7 @@ export default function ForgeryBay({
           imageDataUrl: rawDataUrl,
         });
         setCurrentImage(res.dataUrl);
-        onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
+        await onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
         setEditorKey((k) => k + 1);
         setReady(false);
         setNotice(`Imported image: ${file.name}`);
@@ -387,11 +387,11 @@ export default function ForgeryBay({
           setComparisonOpen(true);
           return;
         }
-        onCommitRotation(dataUrl, fresh, sig, cm ?? undefined);
+        await onCommitRotation(dataUrl, fresh, sig, cm ?? undefined);
         return;
       }
 
-      onCommit(dataUrl, fresh, cm ?? undefined);
+      await onCommit(dataUrl, fresh, cm ?? undefined);
     } finally {
       setBusy(false);
     }

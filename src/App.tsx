@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { clearCoverAssets } from "./lib/coverAssetStore";
 import { AnimatePresence, motion } from "motion/react";
+import { clearMission, loadMission, loadMissionAsync, saveMissionAsync } from "./lib/missionStorage";
 import MarkStudio from "./components/MarkStudio";
 const CoverInspection3D = lazy(() => import("./components/CoverInspection3D"));
 const Prototype3DYard = lazy(() => import("./components/Prototype3DYard"));
@@ -36,34 +38,36 @@ import { clearJob01Accepted, loadJob01Accepted, saveJob01Accepted } from "./lib/
 import {
   clearCoverRecord,
   loadCoverRecord,
+  loadCoverRecordAsync,
   loadCover02Record,
-  saveCoverRecord,
-  saveCover02Record,
+  loadCover02RecordAsync,
+  saveCoverRecordAsync,
+  saveCover02RecordAsync,
   resolveActiveCover,
   type CoverRecord,
   type Cover02Record,
 } from "./lib/coverStorage";
 import {
-  loadChosenFront,
-  saveChosenFront,
-  clearChosenFront,
-  type ChosenFrontRecord,
-} from "./lib/fronts";
-import type { CreativeMetrics } from "./lib/creativeMetrics";
-import {
   buildRunReceipt,
   clearRunReceipt,
   loadRunReceipt,
-  saveRunReceipt,
+  loadRunReceiptAsync,
+  saveRunReceiptAsync,
   type RunReceipt,
 } from "./lib/runReceipt";
 import type { VisualSignatureComparison } from "./lib/signatureComparison";
 import { createCoverStarterDataUrl } from "./lib/coverCanvas";
 import type { CoverAnalysis } from "./lib/coverAnalysis";
 import type { CoverTemplateId } from "./lib/coverTemplates";
+import type { CreativeMetrics } from "./lib/creativeMetrics";
+import {
+  loadChosenFront,
+  saveChosenFront,
+  clearChosenFront,
+  type ChosenFrontRecord,
+} from "./lib/fronts";
 import { getDistrict, type DistrictId } from "./lib/districts";
 import { resolveCanonicalResumeStage, resolveResumeTarget } from "./lib/resume";
-import { clearMission, loadMission, saveMission } from "./lib/missionStorage";
 import { clearReceiptState, loadReceiptState, saveReceiptState } from "./lib/receiptStorage";
 import {
   BURN_HEAT_CONSEQUENCE,
@@ -94,7 +98,8 @@ import {
   type DisguisePackageSlot,
   loadDisguisePackage,
   createDisguisePackage,
-  replaceDisguisePackage,
+  replaceDisguisePackageAsync,
+  loadDisguisePackageAsync,
   clearDisguisePackage,
   clearDisguisePackages,
   DEFAULT_CLEAN_VEHICLE_LIVERY,
@@ -201,6 +206,23 @@ export default function App() {
     cover02?.disguisePackage ?? (receiptState.cover01Burned ? null : cover?.disguisePackage ?? null),
   );
   const [runReceipt, setRunReceipt] = useState<RunReceipt | null>(() => loadRunReceipt());
+
+  // Cover artwork is hydrated from IndexedDB before publishing the durable runtime state.
+  useEffect(() => {
+    let live = true;
+    void Promise.all([loadCoverRecordAsync(), loadCover02RecordAsync(), loadMissionAsync(), loadRunReceiptAsync()]).then(([cover01, cover02, mission, receipt]) => {
+      if (!live) return;
+      if (cover01) setCover(cover01);
+      if (cover02) setCover02(cover02);
+      if (mission) setMissionState(mission);
+      if (receipt) setRunReceipt(receipt);
+      const restoredPackage = cover02?.disguisePackage ?? (receiptState.cover01Burned ? null : cover01?.disguisePackage ?? null);
+      if (restoredPackage) setActivePackage(restoredPackage);
+    });
+    return () => {
+      live = false;
+    };
+  }, [receiptState.cover01Burned]);
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictId | null>(null);
   // Frozen placement of the most recent commit (phone-photo evidence).
@@ -306,14 +328,14 @@ export default function App() {
     setStage("job-yard");
   };
 
+  /** MARK//002 lock: validated evolved output into its own slot, V1 untouched. */
+
   /** JOB//01 acceptance: persist the flag; objectives flip immediately. */
   const handleAcceptJob = () => {
     saveJob01Accepted();
     setJob01Accepted(true);
     console.info("[crewmark] JOB//01 accepted.");
   };
-
-  /** MARK//002 lock: validated evolved output into its own slot, V1 untouched. */
   const handleEvolutionCommit = (dataUrl: string) => {
     setMarkV2(dataUrl);
     const persisted = saveMarkV2(dataUrl);
@@ -324,13 +346,13 @@ export default function App() {
     setStage("mark-v2-reveal");
   };
 
-  const handleArtworkSelection = (
+  const handleArtworkSelection = async (
     dataUrl: string,
     templateId: CoverTemplateId | null,
     slot: DisguisePackageSlot,
   ) => {
     const pkg = createDisguisePackage(dataUrl, templateId, chosenFront?.resolvedFrontId, undefined, slot);
-    const persisted = replaceDisguisePackage(slot, pkg);
+    const persisted = await replaceDisguisePackageAsync(slot, pkg);
     setActivePackage(pkg);
     setPersistWarning(!persisted);
   };
@@ -347,14 +369,14 @@ export default function App() {
   };
 
   /** COVER//01 lock: validated output + fresh analysis + creative metrics into own slots. */
-  const handleCoverCommit = (
+  const handleCoverCommit = async (
     dataUrl: string,
     analysis: CoverAnalysis,
     metrics?: CreativeMetrics,
   ) => {
     const lockedAt = new Date().toISOString();
     const updatedPkg = packageForCommit(dataUrl, "COVER//01");
-    const persisted = saveCoverRecord(dataUrl, analysis, lockedAt, updatedPkg);
+    const persisted = await saveCoverRecordAsync(dataUrl, analysis, lockedAt, updatedPkg);
     setActivePackage(updatedPkg);
     setCover({
       image: dataUrl,
@@ -374,7 +396,7 @@ export default function App() {
     setStage("print-apply");
   };
   /** COVER//02 lock: validated rotated output + fresh analysis + signature comparison + receipt. */
-  const handleCover02Commit = (
+  const handleCover02Commit = async (
     dataUrl: string,
     analysis: CoverAnalysis,
     signature: VisualSignatureComparison,
@@ -382,7 +404,7 @@ export default function App() {
   ) => {
     const lockedAt = new Date().toISOString();
     const updatedPkg = packageForCommit(dataUrl, "COVER//02");
-    const persisted = saveCover02Record(dataUrl, analysis, signature, lockedAt, updatedPkg);
+    const persisted = await saveCover02RecordAsync(dataUrl, analysis, signature, lockedAt, updatedPkg);
     setActivePackage(updatedPkg);
     setCover02({
       image: dataUrl,
@@ -414,16 +436,16 @@ export default function App() {
         receiptsReviewedAt: receiptState.burnedAt ?? lockedAt,
         completedAt: lockedAt,
       });
-      saveRunReceipt(receipt);
+      const persisted = await saveRunReceiptAsync(receipt);
+      setPersistWarning(!persisted);
       setRunReceipt(receipt);
     }
-
     setStage("print-apply");
   };
-  const handleStartJob = () => {
+  const handleStartJob = async () => {
     if (!cover) return;
     const nextMission = startMissionState(cover, cover.disguisePackage ?? activePackage ?? undefined);
-    const persisted = saveMission(nextMission);
+    const persisted = await saveMissionAsync(nextMission);
     setMissionState(nextMission);
     setPersistWarning(!persisted);
     console.info("[crewmark] JOB//01 mission started with frozen disguise package snapshot.", {
@@ -433,14 +455,15 @@ export default function App() {
   };
 
   /** Checkpoint outcome: pays HEAT once, idempotently. */
-  const handleMissionCheckpoint = (branch: CheckpointBranch) => {
+  const handleMissionCheckpoint = async (branch: CheckpointBranch) => {
     if (!missionState) return;
     const withOutcome = withCheckpoint(missionState, branch);
     if (shouldPayCheckpointHeat(withOutcome)) {
       const heatGain = CHECKPOINT_HEAT[branch];
       const paid = withCheckpointHeatPaid(withOutcome);
+      const persisted = await saveMissionAsync(paid);
       setMissionState(paid);
-      saveMission(paid);
+      setPersistWarning(!persisted);
       setProgress((prev) => ({
         ...prev,
         heat: prev.heat + heatGain,
@@ -451,13 +474,14 @@ export default function App() {
     }
   };
 
-  const handleMissionComplete = () => {
+  const handleMissionComplete = async () => {
     if (!missionState) return;
     const completedState = withCompleted(missionState);
     if (shouldPayCompletion(completedState)) {
       const paid = withRepPaid(completedState);
+      const persisted = await saveMissionAsync(paid);
       setMissionState(paid);
-      saveMission(paid);
+      setPersistWarning(!persisted);
       setProgress((prev) => ({
         ...prev,
         rep: prev.rep + MISSION_REP_REWARD,
@@ -496,12 +520,13 @@ export default function App() {
     setActivePackage(cover02?.disguisePackage ?? null);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     clearMark();
     clearMarkV2();
     clearProgress();
     clearJob01Accepted();
     clearCoverRecord();
+    await clearCoverAssets();
     clearMission();
     clearReceiptState();
     clearDisguisePackages();
@@ -777,6 +802,7 @@ export default function App() {
             {stage === "3d-yard" && (
               <Suspense fallback={<div className="cm-screen" style={{ background: "#06080B" }} />}>
                 <Prototype3DYard
+                  activeCoverImage={activeCover?.image ?? null}
                   onBackToHub={() => setStage("job-yard")}
                   onOpenTerminal={() => setStage("front-terminal")}
                   onOpenPrintBay={() => setStage("forgery-bay")}
@@ -817,13 +843,13 @@ export default function App() {
                   initialImage={cover02 ? cover02.image : cover ? cover.image : coverStarter}
                   hasExistingCover={activeCover !== null}
                   onCommit={handleCoverCommit}
-                  onBack={() => {
+                  onBack={async () => {
                     const slot: DisguisePackageSlot = cover02 || (receiptState.cover01Burned && !cover02)
                       ? "COVER//02"
                       : "COVER//01";
                     const lockedPackage = slot === "COVER//02" ? cover02?.disguisePackage : cover?.disguisePackage;
                     if (lockedPackage) {
-                      replaceDisguisePackage(slot, lockedPackage);
+                      await replaceDisguisePackageAsync(slot, lockedPackage);
                       setActivePackage(lockedPackage);
                     } else {
                       clearDisguisePackage(slot);
@@ -838,11 +864,11 @@ export default function App() {
                   onSelectArtwork={handleArtworkSelection}
                   burnedCover01={cover ? { image: cover.image, score: cover.analysis.score } : null}
                   onCommitRotation={handleCover02Commit}
-                  onOpenVehicleEditor={() => {
+                  onOpenVehicleEditor={async () => {
                     const slot: DisguisePackageSlot = cover02 || (receiptState.cover01Burned && !cover02)
                       ? "COVER//02"
                       : "COVER//01";
-                    const slotPackage = loadDisguisePackage(slot);
+                    const slotPackage = activePackage?.slot === slot ? activePackage : await loadDisguisePackageAsync(slot);
                     if (slotPackage) {
                       setActivePackage(slotPackage);
                     } else {
@@ -919,11 +945,11 @@ export default function App() {
                       cover02 || (receiptState.cover01Burned && !cover02) ? "COVER//02" : "COVER//01",
                     )
                   }
-                  onSave={(updated) => {
+                  onSave={async (updated) => {
                     const lockedImage = updated.slot === "COVER//02" ? cover02?.image : cover?.image;
                     const isLockedPackage = lockedImage === updated.identityArtwork;
                     if (isLockedPackage) {
-                      replaceDisguisePackage(updated.slot, updated);
+                      await replaceDisguisePackageAsync(updated.slot, updated);
                       setActivePackage(updated);
                       if (updated.slot === "COVER//02") {
                         setCover02((prev) => prev ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery } : null);
@@ -935,13 +961,13 @@ export default function App() {
                     }
                     setStage("job-yard");
                   }}
-                  onBack={() => {
+                  onBack={async () => {
                     const slot: DisguisePackageSlot = cover02 || (receiptState.cover01Burned && !cover02)
                       ? "COVER//02"
                       : "COVER//01";
                     const lockedPackage = slot === "COVER//02" ? cover02?.disguisePackage : cover?.disguisePackage;
                     if (lockedPackage) {
-                      replaceDisguisePackage(slot, lockedPackage);
+                      await replaceDisguisePackageAsync(slot, lockedPackage);
                       setActivePackage(lockedPackage);
                     } else {
                       clearDisguisePackage(slot);

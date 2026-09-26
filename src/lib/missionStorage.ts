@@ -1,6 +1,7 @@
+import { getCoverAsset, putCoverAsset, type CoverAssetRef } from "./coverAssetStore";
 import type { CoverAnalysis } from "./coverAnalysis";
 import type { CheckpointBranch, MissionState } from "../world/mission";
-import type { DisguisePackage } from "./disguisePackage";
+import { createDisguisePackage, type DisguisePackage } from "./disguisePackage";
 import type { VehicleLivery } from "./vehicleLivery";
 // One dedicated localStorage key — never merged into mark, progress, job,
 // or cover slots — so old saves load with no mission and RESET simply
@@ -72,7 +73,11 @@ export function loadMission(): MissionState | null {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return sanitize(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null && typeof (parsed as { snapshot?: { coverAssetRef?: unknown } }).snapshot?.coverAssetRef === "object") {
+      return null;
+    }
+    return sanitize(parsed);
   } catch (err) {
     console.warn("[crewmark] Mission load failed; treating as no mission.", err);
     return null;
@@ -96,5 +101,85 @@ export function clearMission(): void {
     window.localStorage.removeItem(STORAGE_KEY);
   } catch (err) {
     console.warn("[crewmark] Mission clear failed.", err);
+  }
+}
+
+function missionPackageEnvelope(pkg: DisguisePackage | undefined): Record<string, unknown> | undefined {
+  if (!pkg) return undefined;
+  return {
+    ...pkg,
+    identityArtwork: undefined,
+    vehicleLivery: {
+      ...pkg.vehicleLivery,
+      sourceCoverDataUrl: undefined,
+      doorGraphicDataUrl: undefined,
+      hoodGraphicDataUrl: undefined,
+      rearGraphicDataUrl: undefined,
+      sideStripeDataUrl: undefined,
+    },
+  };
+}
+
+export async function saveMissionAsync(state: MissionState): Promise<boolean> {
+  try {
+    if (!state.snapshot) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      return true;
+    }
+    const ref = state.snapshot.coverAssetRef ?? await putCoverAsset(state.snapshot.coverImage);
+    const persisted = {
+      ...state,
+      snapshot: {
+        ...state.snapshot,
+        coverImage: undefined,
+        coverAssetRef: ref,
+        disguisePackage: missionPackageEnvelope(state.snapshot.disguisePackage),
+        vehicleLivery: undefined,
+      },
+    };
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+    return true;
+  } catch (err) {
+    console.warn("[crewmark] Durable mission save failed; mission is session-only.", err);
+    return false;
+  }
+}
+
+export async function loadMissionAsync(): Promise<MissionState | null> {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const snapshot = parsed.snapshot as Record<string, unknown> | null;
+    const ref = snapshot?.coverAssetRef as CoverAssetRef | undefined;
+    if (!ref) {
+      const legacy = sanitize(parsed);
+      if (!legacy?.snapshot?.coverImage) return legacy;
+      const migratedRef = await putCoverAsset(legacy.snapshot.coverImage);
+      const migrated = { ...legacy, snapshot: { ...legacy.snapshot, coverAssetRef: migratedRef } };
+      await saveMissionAsync(migrated);
+      return migrated;
+    }
+    const image = await getCoverAsset(ref);
+    if (!image) return null;
+    const storedPkg = snapshot?.disguisePackage as Record<string, unknown> | undefined;
+    let pkg: DisguisePackage | undefined;
+    if (storedPkg) {
+      const slot = storedPkg.slot === "COVER//02" ? "COVER//02" : "COVER//01";
+      const created = createDisguisePackage(image, typeof storedPkg.templateId === "string" ? storedPkg.templateId as never : null, (storedPkg.identityMetadata as { frontId?: never } | undefined)?.frontId, storedPkg.customization as never, slot);
+      pkg = { ...created, id: typeof storedPkg.id === "string" ? storedPkg.id : created.id, createdAt: typeof storedPkg.createdAt === "string" ? storedPkg.createdAt : created.createdAt };
+    }
+    return sanitize({
+      ...parsed,
+      snapshot: {
+        ...snapshot,
+        coverImage: image,
+        disguisePackage: pkg,
+        vehicleLivery: pkg?.vehicleLivery,
+      },
+    });
+  } catch (err) {
+    console.warn("[crewmark] Durable mission load failed; treating as no mission.", err);
+    return null;
   }
 }

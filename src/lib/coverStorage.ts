@@ -1,3 +1,4 @@
+import { getCoverAsset, putCoverAsset, type CoverAssetRef } from "./coverAssetStore";
 import type { CoverAnalysis } from "./coverAnalysis";
 import type { VisualSignatureComparison } from "./signatureComparison";
 import type { CoverTemplateId } from "./coverTemplates";
@@ -8,7 +9,9 @@ import {
   clearDisguisePackages,
   createDisguisePackage,
   loadDisguisePackage,
+  loadDisguisePackageAsync,
   replaceDisguisePackage,
+  replaceDisguisePackageAsync,
 } from "./disguisePackage";
 /**
  * P3.5A-R.2 & P3.5A-R.5: Persistent COVER//01 and COVER//02 states.
@@ -40,6 +43,7 @@ export interface CoverRecord {
   readonly templateId?: CoverTemplateId | null;
   readonly disguisePackage?: DisguisePackage;
   readonly vehicleLivery?: VehicleLivery;
+  readonly assetRef?: CoverAssetRef;
 }
 
 export interface Cover02Record {
@@ -50,6 +54,7 @@ export interface Cover02Record {
   readonly templateId?: CoverTemplateId | null;
   readonly disguisePackage?: DisguisePackage;
   readonly vehicleLivery?: VehicleLivery;
+  readonly assetRef?: CoverAssetRef;
 }
 
 export type CoverVersion = "COVER//01" | "COVER//02";
@@ -232,6 +237,116 @@ export function clearCoverRecord(): void {
   }
 }
 
+
+function assetEnvelope(ref: CoverAssetRef): string {
+  return JSON.stringify({ schemaVersion: 1, assetRef: ref });
+}
+
+function parseAssetEnvelope(value: string | null): CoverAssetRef | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as { schemaVersion?: unknown; assetRef?: CoverAssetRef };
+    return parsed.schemaVersion === 1 && parsed.assetRef?.id ? parsed.assetRef : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCoverRecordAsync(
+  image: string,
+  analysis: CoverAnalysis,
+  lockedAt: string,
+  pkg?: DisguisePackage,
+): Promise<boolean> {
+  let packageValue: DisguisePackage;
+  try {
+    packageValue = pkg ?? createDisguisePackage(image, null, undefined, undefined, "COVER//01");
+    if (packageValue.identityArtwork !== image || packageValue.slot !== "COVER//01") return false;
+    const assetRef = await putCoverAsset(image);
+    if (!(await replaceDisguisePackageAsync("COVER//01", packageValue))) return false;
+    window.localStorage.setItem(IMAGE_KEY, assetEnvelope(assetRef));
+    window.localStorage.setItem(ANALYSIS_KEY, JSON.stringify(analysis));
+    window.localStorage.setItem(`${IMAGE_KEY}:lockedAt`, lockedAt);
+    return true;
+  } catch (err) {
+    console.warn("[crewmark] Durable Cover01 save failed; cover is session-only.", err);
+    return false;
+  }
+}
+
+export async function saveCover02RecordAsync(
+  image: string,
+  analysis: CoverAnalysis,
+  signature: VisualSignatureComparison,
+  lockedAt: string,
+  pkg?: DisguisePackage,
+): Promise<boolean> {
+  let packageValue: DisguisePackage;
+  try {
+    packageValue = pkg ?? createDisguisePackage(image, null, undefined, undefined, "COVER//02");
+    if (packageValue.identityArtwork !== image || packageValue.slot !== "COVER//02") return false;
+    const assetRef = await putCoverAsset(image);
+    if (!(await replaceDisguisePackageAsync("COVER//02", packageValue))) return false;
+    window.localStorage.setItem(IMAGE_KEY_V2, assetEnvelope(assetRef));
+    window.localStorage.setItem(ANALYSIS_KEY_V2, JSON.stringify(analysis));
+    window.localStorage.setItem(SIGNATURE_KEY_V2, JSON.stringify(signature));
+    window.localStorage.setItem(`${IMAGE_KEY_V2}:lockedAt`, lockedAt);
+    return true;
+  } catch (err) {
+    console.warn("[crewmark] Durable Cover02 save failed; cover02 is session-only.", err);
+    return false;
+  }
+}
+
+export async function loadCoverRecordAsync(): Promise<CoverRecord | null> {
+  try {
+    const envelope = parseAssetEnvelope(window.localStorage.getItem(IMAGE_KEY));
+    const rawAnalysis = window.localStorage.getItem(ANALYSIS_KEY);
+    if (!rawAnalysis) return null;
+    if (!envelope) {
+      const legacy = loadCoverRecord();
+      if (!legacy) return null;
+      const assetRef = await putCoverAsset(legacy.image);
+      const migrated = { ...legacy, assetRef };
+      if (legacy.disguisePackage) await replaceDisguisePackageAsync("COVER//01", legacy.disguisePackage);
+      window.localStorage.setItem(IMAGE_KEY, assetEnvelope(assetRef));
+      return migrated;
+    }
+    const image = await getCoverAsset(envelope);
+    const analysis: unknown = JSON.parse(rawAnalysis);
+    const pkg = await loadDisguisePackageAsync("COVER//01");
+    if (!image || !isPlausibleAnalysis(analysis) || !pkg || pkg.identityArtwork !== image) return null;
+    return { image, analysis, lockedAt: window.localStorage.getItem(`${IMAGE_KEY}:lockedAt`) ?? "", templateId: pkg.templateId ?? null, disguisePackage: pkg, vehicleLivery: pkg.vehicleLivery, assetRef: envelope };
+  } catch {
+    return null;
+  }
+}
+
+export async function loadCover02RecordAsync(): Promise<Cover02Record | null> {
+  try {
+    const envelope = parseAssetEnvelope(window.localStorage.getItem(IMAGE_KEY_V2));
+    const rawAnalysis = window.localStorage.getItem(ANALYSIS_KEY_V2);
+    const rawSignature = window.localStorage.getItem(SIGNATURE_KEY_V2);
+    if (!rawAnalysis || !rawSignature) return null;
+    if (!envelope) {
+      const legacy = loadCover02Record();
+      if (!legacy) return null;
+      const assetRef = await putCoverAsset(legacy.image);
+      const migrated = { ...legacy, assetRef };
+      if (legacy.disguisePackage) await replaceDisguisePackageAsync("COVER//02", legacy.disguisePackage);
+      window.localStorage.setItem(IMAGE_KEY_V2, assetEnvelope(assetRef));
+      return migrated;
+    }
+    const image = await getCoverAsset(envelope);
+    const analysis: unknown = JSON.parse(rawAnalysis);
+    const signature: unknown = JSON.parse(rawSignature);
+    const pkg = await loadDisguisePackageAsync("COVER//02");
+    if (!image || !isPlausibleAnalysis(analysis) || !isPlausibleSignature(signature) || !pkg || pkg.identityArtwork !== image) return null;
+    return { image, analysis, signature, lockedAt: window.localStorage.getItem(`${IMAGE_KEY_V2}:lockedAt`) ?? "", templateId: pkg.templateId ?? null, disguisePackage: pkg, vehicleLivery: pkg.vehicleLivery, assetRef: envelope };
+  } catch {
+    return null;
+  }
+}
 /**
  * Deterministic active cover resolver:
  * - When COVER//02 is locked, it outranks COVER//01 and is the active vehicle disguise.
