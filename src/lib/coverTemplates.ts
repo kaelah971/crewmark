@@ -41,7 +41,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "BALANCED",
     whyItWorks: "Sun-faded resort livery reads as long-term local fleet.",
     guidance: "Make it feel like the van has been servicing pools since 2014.",
-    assetUrl: "/templates/covers/publictemplatescoversclearwater-pool-co.png.png",
+    assetUrl: "/templates/covers/clearwater-pool-co.png",
   },
   {
     id: "bug-out-305",
@@ -51,7 +51,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "HIGH",
     whyItWorks: "Hazard yellow grabs the eye — readable from ten metres, memorable to cameras.",
     guidance: "Boring enough for a gated property. Loud enough to read from ten metres.",
-    assetUrl: "/templates/covers/publictemplatescoversbug-out-305.png.png",
+    assetUrl: "/templates/covers/bug-out-305.png",
   },
   {
     id: "coral-bloom",
@@ -61,7 +61,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "BALANCED",
     whyItWorks: "Friendly florist van; bright but expected on residential streets.",
     guidance: "Bright enough to belong. Normal enough to ignore.",
-    assetUrl: "/templates/covers/publictemplatescoverscoral-bloom.png.png",
+    assetUrl: "/templates/covers/coral-bloom.png",
   },
   {
     id: "nightshift-supply",
@@ -71,7 +71,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "LOW",
     whyItWorks: "Dark industrial livery disappears at night; only the manifest number talks.",
     guidance: "Nocturnal and discreet — let the paperwork do the talking.",
-    assetUrl: "/templates/covers/publictemplatescoversnightshift-supply.png.png",
+    assetUrl: "/templates/covers/nightshift-supply.png",
   },
   {
     id: "vice-mobile-detail",
@@ -81,7 +81,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "HIGH",
     whyItWorks: "Motorsport chrome and electric blue demand a second look.",
     guidance: "Mirror-finish pride. Loud is the point — just be ready to be remembered.",
-    assetUrl: "/templates/covers/publictemplatescoversvice-mobile-detail.png.png",
+    assetUrl: "/templates/covers/vice-mobile-detail.png",
   },
   {
     id: "palm-state-utilities",
@@ -91,7 +91,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "LOW",
     whyItWorks: "The city trusts forms, numbers, and dull colors.",
     guidance: "Be deliberately boring. Forms, numbers, dull colors.",
-    assetUrl: "/templates/covers/publictemplatescoverspalm-state-utilities.png.png",
+    assetUrl: "/templates/covers/palm-state-utilities.png",
   },
   {
     id: "sunset-septic",
@@ -101,7 +101,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "LOW",
     whyItWorks: "Nobody looks twice at a septic truck.",
     guidance: "Old, tan, and unbothered — that's the disguise.",
-    assetUrl: "/templates/covers/publictemplatescoverssunset-septic.png.png",
+    assetUrl: "/templates/covers/sunset-septic.png",
   },
   {
     id: "paradise-cold-chain",
@@ -111,7 +111,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     attention: "BALANCED",
     whyItWorks: "Refrigeration units are everywhere; the snowflake earns the gate.",
     guidance: "Cold, clean, and procedural — keep it frosty.",
-    assetUrl: "/templates/covers/publictemplatescoversparadise-cold-chain.png (2).png",
+    assetUrl: "/templates/covers/paradise-cold-chain.png",
   },
 ];
 

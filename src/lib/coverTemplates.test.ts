@@ -42,7 +42,7 @@ describe("P8.1 approved cover templates", () => {
 
     expect(getCoverTemplate("bug-out-305").company).toBe("BUG OUT 305");
     expect(getCoverTemplate("clearwater-pool").assetUrl).toBe(
-      "/templates/covers/publictemplatescoversclearwater-pool-co.png.png",
+      "/templates/covers/clearwater-pool-co.png",
     );
     expect(() => getCoverTemplate("unknown-company" as never)).toThrow();
   });
@@ -50,7 +50,7 @@ describe("P8.1 approved cover templates", () => {
   it("renderCoverTemplateDataUrl returns valid asset URL or data URL", () => {
     const url = renderCoverTemplateDataUrl("clearwater-pool");
     expect(url).toBe(
-      "/templates/covers/publictemplatescoversclearwater-pool-co.png.png",
+      "/templates/covers/clearwater-pool-co.png",
     );
   });
 });
