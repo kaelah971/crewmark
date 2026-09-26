@@ -1,34 +1,34 @@
-import type { CoverTemplateId } from "./coverTemplates";
-import { COVER_TEMPLATES } from "./coverTemplates";
-import type { FrontId } from "./fronts";
-import type { VehicleLivery, VehicleStripePattern } from "./vehicleLivery";
-import { deriveVehicleLivery } from "./vehicleLivery";
+import { getCoverTemplate, isCoverTemplateId, type CoverTemplateId } from "./coverTemplates";
+import { isFrontId, type FrontId } from "./fronts";
+import {
+  deriveVehicleLivery,
+  resolveTemplateId,
+  type VehicleLivery,
+  type VehicleStripePattern,
+} from "./vehicleLivery";
 
-/**
- * P9.2 Linked Disguise Package Domain Contract.
- *
- * ONE chosen disguise identity controls BOTH:
- * 1. The supporting identity package (pass, crate, jacket, credentials)
- * 2. The vehicle livery (body spray, secondary paint, accent stripes, door branding, hood mark, unit markings)
- */
+export type DisguisePackageSlot = "COVER//01" | "COVER//02";
+export const DISGUISE_PACKAGE_VERSION = 1 as const;
 
 export interface VehicleCustomization {
   readonly bodyBaseColor?: string;
   readonly secondaryColor?: string;
   readonly accentColor?: string;
   readonly stripePattern?: VehicleStripePattern | "none";
-  readonly logoScale?: number;            // 0.7 to 1.5, default 1.0
+  readonly logoScale?: number;
   readonly logoPlacement?: "center" | "forward" | "rearward";
-  readonly showHoodMark?: boolean;        // default true
-  readonly showRearMarking?: boolean;     // default true
+  readonly showHoodMark?: boolean;
+  readonly showRearMarking?: boolean;
 }
 
 export interface DisguisePackage {
-  readonly id: string;                    // e.g. "pkg-bug-out-305" or "pkg-custom-..."
+  readonly version: typeof DISGUISE_PACKAGE_VERSION;
+  readonly slot: DisguisePackageSlot;
+  readonly id: string;
   readonly templateId: CoverTemplateId | null;
   readonly companyName: string;
   readonly tagline: string;
-  readonly identityArtwork: string;       // Primary 16:7 vinyl cover data URL
+  readonly identityArtwork: string;
   readonly identityMetadata: {
     readonly frontId?: FrontId;
     readonly personality?: string;
@@ -40,55 +40,71 @@ export interface DisguisePackage {
   readonly createdAt: string;
 }
 
-/**
- * DEFAULT STATE: Clean, undisguised factory black sedan.
- * When no disguise is chosen:
- * - Crew sedan is plain black (#111214)
- * - Deep satin black lower trim (#0C0D0E)
- * - Subdued dark graphite accents (#2A2B2E)
- * - No fake company branding, no logos, no stripes.
- * User understands: BLACK CAR = CLEAN / UNDISGUISED STATE.
- */
+/** Clean, genuinely unbranded factory state. */
 export const DEFAULT_CLEAN_VEHICLE_LIVERY: VehicleLivery = {
   sourceCoverDataUrl: "",
-  bodyBaseColor: "#111214",               // Factory black gloss
-  secondaryColor: "#0C0D0E",              // Deep satin black
-  accentColor: "#2A2B2E",                 // Dark metallic graphite
+  bodyBaseColor: "#111214",
+  secondaryColor: "#0C0D0E",
+  accentColor: "#2A2B2E",
   doorGraphicDataUrl: "",
   hoodGraphicDataUrl: "",
   rearGraphicDataUrl: "",
-  stripePattern: "service",
+  stripePattern: "detail",
   companyLabel: "UNDISGUISED // FACTORY FLEET",
   unitLabel: "CLEAN STATE",
   badgeWidth: 0,
   badgeHeight: 0,
 };
 
-/**
- * Storage keys for disguise packages
- */
 const PACKAGE_KEY_V1 = "crewmark:r:package01";
 const PACKAGE_KEY_V2 = "crewmark:r:package02";
-const ACTIVE_PACKAGE_KEY = "crewmark:r:active_package";
 
-/**
- * Applies fine-grained user vehicle customization over a base vehicle livery.
- */
+function packageKey(slot: DisguisePackageSlot): string {
+  return slot === "COVER//02" ? PACKAGE_KEY_V2 : PACKAGE_KEY_V1;
+}
+
+
+const VALID_STRIPE_PATTERNS: readonly string[] = [
+  "hazard",
+  "wave",
+  "logistics",
+  "municipal",
+  "service",
+  "cold",
+  "heritage",
+  "detail",
+];
+
+function validCustomization(value: unknown): value is VehicleCustomization | undefined {
+  if (value === undefined) return true;
+  if (typeof value !== "object" || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return (
+    (c.bodyBaseColor === undefined || typeof c.bodyBaseColor === "string") &&
+    (c.secondaryColor === undefined || typeof c.secondaryColor === "string") &&
+    (c.accentColor === undefined || typeof c.accentColor === "string") &&
+    (c.stripePattern === undefined || c.stripePattern === "none" || VALID_STRIPE_PATTERNS.includes(c.stripePattern as string)) &&
+    (c.logoScale === undefined || (typeof c.logoScale === "number" && c.logoScale >= 0.7 && c.logoScale <= 1.5)) &&
+    (c.logoPlacement === undefined || c.logoPlacement === "center" || c.logoPlacement === "forward" || c.logoPlacement === "rearward") &&
+    (c.showHoodMark === undefined || typeof c.showHoodMark === "boolean") &&
+    (c.showRearMarking === undefined || typeof c.showRearMarking === "boolean")
+  );
+}
+
+/** Applies fine-grained user vehicle customization over an authored livery. */
 export function applyVehicleCustomization(
   baseLivery: VehicleLivery,
   custom?: VehicleCustomization,
 ): VehicleLivery {
   if (!custom) return baseLivery;
-
   const bW = (baseLivery.badgeWidth || 0.65) * (custom.logoScale ?? 1.0);
   const bH = (baseLivery.badgeHeight || 0.42) * (custom.logoScale ?? 1.0);
-
   return {
     ...baseLivery,
     bodyBaseColor: custom.bodyBaseColor ?? baseLivery.bodyBaseColor,
     secondaryColor: custom.secondaryColor ?? baseLivery.secondaryColor,
     accentColor: custom.accentColor ?? baseLivery.accentColor,
-    stripePattern: custom.stripePattern === "none" ? "service" : (custom.stripePattern ?? baseLivery.stripePattern),
+    stripePattern: custom.stripePattern === "none" ? "detail" : (custom.stripePattern ?? baseLivery.stripePattern),
     doorGraphicDataUrl: baseLivery.doorGraphicDataUrl,
     hoodGraphicDataUrl: custom.showHoodMark === false ? "" : baseLivery.hoodGraphicDataUrl,
     rearGraphicDataUrl: custom.showRearMarking === false ? "" : baseLivery.rearGraphicDataUrl,
@@ -97,30 +113,97 @@ export function applyVehicleCustomization(
   };
 }
 
-/**
- * Creates a fully synchronized DisguisePackage from a template or custom artwork.
- */
+/** Runtime invariant check. TypeScript casts are never sufficient for persisted packages. */
+function validVehicleLivery(livery: VehicleLivery, pkg: Pick<DisguisePackage, "identityArtwork" | "templateId" | "identityMetadata" | "customization">): boolean {
+  if (
+    typeof livery.sourceCoverDataUrl !== "string" ||
+    typeof livery.bodyBaseColor !== "string" ||
+    typeof livery.secondaryColor !== "string" ||
+    typeof livery.accentColor !== "string" ||
+    typeof livery.doorGraphicDataUrl !== "string" ||
+    typeof livery.hoodGraphicDataUrl !== "string" ||
+    typeof livery.rearGraphicDataUrl !== "string" ||
+    typeof livery.companyLabel !== "string" ||
+    typeof livery.unitLabel !== "string" ||
+    !VALID_STRIPE_PATTERNS.includes(livery.stripePattern) ||
+    !Number.isFinite(livery.badgeWidth) ||
+    !Number.isFinite(livery.badgeHeight) ||
+    livery.badgeWidth < 0 ||
+    livery.badgeHeight < 0
+  ) return false;
+  if ((livery.templateId ?? null) !== pkg.templateId) return false;
+  const expected = applyVehicleCustomization(
+    deriveVehicleLivery(pkg.identityArtwork, pkg.templateId ?? pkg.identityMetadata.frontId),
+    pkg.customization,
+  );
+  return (
+    livery.bodyBaseColor === expected.bodyBaseColor &&
+    livery.secondaryColor === expected.secondaryColor &&
+    livery.accentColor === expected.accentColor &&
+    livery.stripePattern === expected.stripePattern &&
+    livery.companyLabel === expected.companyLabel &&
+    livery.unitLabel === expected.unitLabel &&
+    livery.badgeWidth === expected.badgeWidth &&
+    livery.badgeHeight === expected.badgeHeight
+  );
+}
+
+export function validateDisguisePackage(value: unknown, expectedSlot?: DisguisePackageSlot): value is DisguisePackage {
+  if (typeof value !== "object" || value === null) return false;
+  const pkg = value as Record<string, unknown>;
+  if (pkg.version !== DISGUISE_PACKAGE_VERSION) return false;
+  if (pkg.slot !== "COVER//01" && pkg.slot !== "COVER//02") return false;
+  if (expectedSlot && pkg.slot !== expectedSlot) return false;
+  if (
+    typeof pkg.id !== "string" ||
+    !pkg.id ||
+    typeof pkg.identityArtwork !== "string" ||
+    !pkg.identityArtwork.startsWith("data:image/")
+  ) return false;
+  if (pkg.templateId !== null && !isCoverTemplateId(pkg.templateId)) return false;
+  if (typeof pkg.companyName !== "string" || typeof pkg.tagline !== "string" || typeof pkg.createdAt !== "string") return false;
+  if (typeof pkg.identityMetadata !== "object" || pkg.identityMetadata === null) return false;
+  const metadata = pkg.identityMetadata as Record<string, unknown>;
+  if (
+    (metadata.frontId !== undefined && !isFrontId(metadata.frontId)) ||
+    (metadata.personality !== undefined && typeof metadata.personality !== "string") ||
+    (metadata.palette !== undefined && typeof metadata.palette !== "string") ||
+    (metadata.unitCode !== undefined && typeof metadata.unitCode !== "string")
+  ) return false;
+  if (!validCustomization(pkg.customization)) return false;
+  if (typeof pkg.vehicleLivery !== "object" || pkg.vehicleLivery === null) return false;
+  const livery = pkg.vehicleLivery as VehicleLivery;
+  if (livery.sourceCoverDataUrl !== pkg.identityArtwork) return false;
+  const template = pkg.templateId ? getCoverTemplate(pkg.templateId) : null;
+  const expectedCompany = template?.company ?? livery.companyLabel;
+  const expectedTagline = template?.personality ?? "Commercial contractor vehicle disguise.";
+  if (pkg.companyName !== expectedCompany || pkg.tagline !== expectedTagline) return false;
+  return validVehicleLivery(
+    livery,
+    pkg as Pick<DisguisePackage, "identityArtwork" | "templateId" | "identityMetadata" | "customization">,
+  );
+}
+
+/** Creates a complete package from one identity/artwork selection. */
 export function createDisguisePackage(
   artworkDataUrl: string,
   templateId?: CoverTemplateId | null,
   frontId?: FrontId,
   customization?: VehicleCustomization,
+  slot: DisguisePackageSlot = "COVER//01",
 ): DisguisePackage {
-  const template = templateId
-    ? COVER_TEMPLATES.find((t) => t.id === templateId)
-    : null;
-
-  const baseLivery = deriveVehicleLivery(artworkDataUrl, templateId ?? frontId);
+  if (!artworkDataUrl.startsWith("data:image/")) throw new Error("[crewmark] Disguise artwork must be an image data URL.");
+  const resolvedTemplateId = templateId ?? resolveTemplateId(frontId, artworkDataUrl);
+  const baseLivery = deriveVehicleLivery(artworkDataUrl, resolvedTemplateId ?? frontId);
   const vehicleLivery = applyVehicleCustomization(baseLivery, customization);
-
-  const companyName = template?.company ?? vehicleLivery.companyLabel;
-  const tagline = template?.personality ?? "Commercial contractor vehicle disguise.";
-
-  return {
-    id: `pkg-${templateId ?? "custom"}-${Date.now().toString(36)}`,
-    templateId: templateId ?? null,
-    companyName,
-    tagline,
+  const template = resolvedTemplateId ? getCoverTemplate(resolvedTemplateId) : null;
+  const packageValue: DisguisePackage = {
+    version: DISGUISE_PACKAGE_VERSION,
+    slot,
+    id: `pkg-${resolvedTemplateId ?? "custom"}-${Date.now().toString(36)}`,
+    templateId: resolvedTemplateId,
+    companyName: template?.company ?? baseLivery.companyLabel,
+    tagline: template?.personality ?? "Commercial contractor vehicle disguise.",
     identityArtwork: artworkDataUrl,
     identityMetadata: {
       frontId,
@@ -132,67 +215,119 @@ export function createDisguisePackage(
     customization,
     createdAt: new Date().toISOString(),
   };
+  if (!validateDisguisePackage(packageValue, slot)) throw new Error("[crewmark] Created invalid disguise package.");
+  return packageValue;
 }
 
-/**
- * Saves a disguise package to localStorage (V1 or V2).
- */
-export function saveDisguisePackage(
-  pkg: DisguisePackage,
-  version: "COVER//01" | "COVER//02" = "COVER//01",
-): boolean {
-  if (typeof window === "undefined") return false;
+/** Normalizes old unversioned package payloads into the current slot-scoped contract. */
+export function normalizeDisguisePackage(value: unknown, slot: DisguisePackageSlot): DisguisePackage | null {
+  if (validateDisguisePackage(value, slot)) return value;
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  if ("slot" in raw && raw.slot !== slot) return null;
+  if (typeof raw.identityArtwork !== "string" || !raw.identityArtwork) return null;
+  const metadata = typeof raw.identityMetadata === "object" && raw.identityMetadata !== null
+    ? raw.identityMetadata as DisguisePackage["identityMetadata"]
+    : {};
+  const templateId = isCoverTemplateId(raw.templateId) ? raw.templateId : resolveTemplateId(metadata.frontId, raw.identityArtwork);
+  const customization = validCustomization(raw.customization) ? raw.customization : undefined;
   try {
-    const key = version === "COVER//02" ? PACKAGE_KEY_V2 : PACKAGE_KEY_V1;
-    window.localStorage.setItem(key, JSON.stringify(pkg));
-    window.localStorage.setItem(ACTIVE_PACKAGE_KEY, JSON.stringify(pkg));
-    return true;
-  } catch (err) {
-    console.warn("[crewmark] Failed to save disguise package:", err);
-    return false;
-  }
-}
-
-/**
- * Loads a frozen disguise package from localStorage.
- */
-export function loadDisguisePackage(
-  version: "COVER//01" | "COVER//02" = "COVER//01",
-): DisguisePackage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const key = version === "COVER//02" ? PACKAGE_KEY_V2 : PACKAGE_KEY_V1;
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || !parsed.vehicleLivery) return null;
-    return parsed as DisguisePackage;
+    return createDisguisePackage(raw.identityArtwork, templateId, metadata.frontId, customization, slot);
   } catch {
     return null;
   }
 }
 
-/**
- * Loads the active disguise package (V2 over V1, or null if clean).
- */
-export function loadActiveDisguisePackage(cover01Burned = false): DisguisePackage | null {
-  const pkg02 = loadDisguisePackage("COVER//02");
-  if (pkg02) return pkg02;
-  const pkg01 = loadDisguisePackage("COVER//01");
-  if (pkg01 && !cover01Burned) return pkg01;
-  return pkg01; // Can still be viewed as burned
+function storagePayload(pkg: DisguisePackage): DisguisePackage {
+  // Generated badge PNGs are recreated from the canonical artwork on load.
+  // Omitting their duplicate payload keeps approved 1600x700 covers under browser storage quotas.
+  return {
+    ...pkg,
+    vehicleLivery: {
+      ...pkg.vehicleLivery,
+      sourceCoverDataUrl: "",
+      doorGraphicDataUrl: "",
+      hoodGraphicDataUrl: "",
+      rearGraphicDataUrl: "",
+      sideStripeDataUrl: "",
+    },
+  };
 }
 
-/**
- * Clears disguise package storage on reset.
- */
+/** Validated single-source persistence for one independent cover slot. */
+export function replaceDisguisePackage(slot: DisguisePackageSlot, pkg: DisguisePackage): boolean {
+  if (!validateDisguisePackage(pkg, slot) || typeof window === "undefined") return false;
+  const serialized = JSON.stringify(storagePayload(pkg));
+  try {
+    window.localStorage.setItem(packageKey(slot), serialized);
+    return true;
+  } catch (err) {
+    try {
+      window.sessionStorage?.setItem(packageKey(slot), serialized);
+      return true;
+    } catch {
+      console.warn("[crewmark] Failed to save disguise package:", err instanceof Error ? err.message : String(err));
+      return false;
+    }
+  }
+}
+
+
+function packageStorageCandidates(key: string): string[] {
+  const values: string[] = [];
+  try {
+    const local = window.localStorage.getItem(key);
+    if (local) values.push(local);
+  } catch {
+    // Try the session fallback below.
+  }
+  try {
+    const session = window.sessionStorage?.getItem(key);
+    if (session) values.push(session);
+  } catch {
+    // No available browser storage.
+  }
+  return values;
+}
+
+export function loadDisguisePackage(slot: DisguisePackageSlot): DisguisePackage | null {
+  if (typeof window === "undefined") return null;
+  for (const raw of packageStorageCandidates(packageKey(slot))) {
+    try {
+      const parsed = JSON.parse(raw);
+      const normalized = normalizeDisguisePackage(parsed, slot);
+      if (!normalized) continue;
+      if (!validateDisguisePackage(parsed, slot)) replaceDisguisePackage(slot, normalized);
+      return normalized;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+export function clearDisguisePackage(slot: DisguisePackageSlot): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(packageKey(slot));
+  } catch {
+    // Continue with the session fallback.
+  }
+  try {
+    window.sessionStorage?.removeItem(packageKey(slot));
+  } catch (err) {
+    console.warn("[crewmark] Failed to clear disguise package:", err);
+  }
+}
+
+
 export function clearDisguisePackages(): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(PACKAGE_KEY_V1);
     window.localStorage.removeItem(PACKAGE_KEY_V2);
-    window.localStorage.removeItem(ACTIVE_PACKAGE_KEY);
-  } catch {
-    // Ignored
+    window.sessionStorage?.removeItem(PACKAGE_KEY_V1);
+    window.sessionStorage?.removeItem(PACKAGE_KEY_V2);
+  } catch (err) {
+    console.warn("[crewmark] Failed to clear disguise packages:", err);
   }
 }

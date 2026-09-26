@@ -29,7 +29,8 @@ import {
 } from "../lib/signatureComparison";
 import MultiSurfacePreview from "./MultiSurfacePreview";
 import TemplateGallery from "./TemplateGallery";
-import type { CoverTemplateId } from "../lib/coverTemplates";
+import { loadCoverTemplateDataUrl, type CoverTemplateId } from "../lib/coverTemplates";
+import type { DisguisePackageSlot } from "../lib/disguisePackage";
 import {
   createStarterTemplate,
   loadChosenFront,
@@ -75,7 +76,10 @@ export interface ForgeryBayProps {
   ) => void;
   chosenFront?: ChosenFrontRecord | null;
   startInGallery?: boolean;
+  packageSlot?: DisguisePackageSlot;
+  onSelectArtwork?: (dataUrl: string, templateId: CoverTemplateId | null, slot: DisguisePackageSlot) => void;
   onOpenVehicleEditor?: () => void;
+
 }
 
 /**
@@ -101,9 +105,12 @@ export default function ForgeryBay({
   onCommitRotation,
   chosenFront: initialChosenFront,
   startInGallery,
+  packageSlot,
+  onSelectArtwork,
   onOpenVehicleEditor,
 }: ForgeryBayProps) {
   const isV2 = isRotationMode || isEditingCover02;
+  const activePackageSlot = packageSlot ?? (isV2 ? "COVER//02" : "COVER//01");
   // P8: gallery-first for fresh COVER//01; rotation/editing flows keep the editor-first layout.
   const [galleryOpen, setGalleryOpen] = useState(
     () => (startInGallery ?? (!isV2 && !hasExistingCover)),
@@ -220,22 +227,21 @@ export default function ForgeryBay({
     }
   };
 
-  /** P8: load a template raster into the editor as the remix base. */
+  /** Load an approved template raster and replace the active package identity. */
   const loadTemplateIntoEditor = async (dataUrl: string, label: string) => {
     setGalleryOpen(false);
-    setCurrentImage(dataUrl);
-    setEditorKey((k) => k + 1);
     setReady(false);
     setNotice(null);
     setReferenceTemplate(null);
     try {
-      localStorage.setItem("crewmark:r:template_id", label);
-    } catch {
-      // Ignored
-    }
-    try {
-      const res = { dataUrl };
-      void runCheckOnDataUrl(res.dataUrl);
+      const templateId = label as CoverTemplateId;
+      const canonicalDataUrl = dataUrl.startsWith("data:image/")
+        ? dataUrl
+        : await loadCoverTemplateDataUrl(templateId);
+      setCurrentImage(canonicalDataUrl);
+      setEditorKey((k) => k + 1);
+      onSelectArtwork?.(canonicalDataUrl, templateId, activePackageSlot);
+      void runCheckOnDataUrl(canonicalDataUrl);
       setNotice(`${label} loaded onto canvas. Remix it.`);
     } catch {
       setNotice(`Could not load ${label}.`);
@@ -247,16 +253,12 @@ export default function ForgeryBay({
     setBusy(true);
     setNotice(null);
     try {
-      localStorage.removeItem("crewmark:r:template_id");
-    } catch {
-      // Ignored
-    }
-    try {
       const res = await createStarterTemplate({
         kind: "blank",
         frontId: chosenFrontRecord?.resolvedFrontId,
       });
       setCurrentImage(res.dataUrl);
+      onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
       setEditorKey((k) => k + 1);
       setReady(false);
       setNotice("Blank vinyl stock loaded onto canvas.");
@@ -278,6 +280,7 @@ export default function ForgeryBay({
       });
       setCurrentImage(res.dataUrl);
       setEditorKey((k) => k + 1);
+      onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
       setReady(false);
       setNotice(`Loaded ${frontName} starter template.`);
       void runCheckOnDataUrl(res.dataUrl);
@@ -307,6 +310,7 @@ export default function ForgeryBay({
           imageDataUrl: rawDataUrl,
         });
         setCurrentImage(res.dataUrl);
+        onSelectArtwork?.(res.dataUrl, null, activePackageSlot);
         setEditorKey((k) => k + 1);
         setReady(false);
         setNotice(`Imported image: ${file.name}`);

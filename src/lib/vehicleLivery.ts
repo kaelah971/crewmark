@@ -843,15 +843,7 @@ export function resolveTemplateId(
     if (sourceUrl.includes("paradise-cold-chain")) return "paradise-cold-chain";
   }
 
-  if (typeof localStorage !== "undefined") {
-    try {
-      const saved = localStorage.getItem("crewmark:r:template_id");
-      if (saved && saved in TEMPLATE_CONFIGS) return saved as CoverTemplateId;
-    } catch {
-      // Ignored
-    }
-  }
-
+  // Template identity is explicit package data, never ambient localStorage.
   if (!identity) return null;
   if (identity in TEMPLATE_CONFIGS) return identity as CoverTemplateId;
   const fromFront = FRONT_TO_TEMPLATE[identity as FrontId];

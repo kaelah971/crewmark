@@ -4,7 +4,7 @@ import {
   type CoverInspection3DSceneResult,
 } from "../lib/coverInspection3dScene";
 import type { DisguisePackage, VehicleCustomization } from "../lib/disguisePackage";
-import { applyVehicleCustomization, saveDisguisePackage } from "../lib/disguisePackage";
+import { applyVehicleCustomization } from "../lib/disguisePackage";
 import type { VehicleLivery } from "../lib/vehicleLivery";
 import { deriveVehicleLivery } from "../lib/vehicleLivery";
 import { ArrowLeft, RotateCcw, Save, Shield, SlidersHorizontal } from "lucide-react";
@@ -143,7 +143,6 @@ export default function VehicleEditor({
       vehicleLivery: activeLivery,
       customization,
     };
-    saveDisguisePackage(updatedPackage, "COVER//01");
     onSave(updatedPackage);
   };
 

@@ -60,6 +60,7 @@ import {
 import type { VisualSignatureComparison } from "./lib/signatureComparison";
 import { createCoverStarterDataUrl } from "./lib/coverCanvas";
 import type { CoverAnalysis } from "./lib/coverAnalysis";
+import type { CoverTemplateId } from "./lib/coverTemplates";
 import { getDistrict, type DistrictId } from "./lib/districts";
 import { resolveCanonicalResumeStage, resolveResumeTarget } from "./lib/resume";
 import { clearMission, loadMission, saveMission } from "./lib/missionStorage";
@@ -91,9 +92,11 @@ import { deriveVehicleLivery } from "./lib/vehicleLivery";
 import VehicleEditor from "./components/VehicleEditor";
 import {
   type DisguisePackage,
-  loadActiveDisguisePackage,
+  type DisguisePackageSlot,
+  loadDisguisePackage,
   createDisguisePackage,
-  saveDisguisePackage,
+  replaceDisguisePackage,
+  clearDisguisePackage,
   clearDisguisePackages,
   DEFAULT_CLEAN_VEHICLE_LIVERY,
 } from "./lib/disguisePackage";
@@ -196,7 +199,7 @@ export default function App() {
   // P6 Creative Playground: chosen front and final run receipt state.
   const [chosenFront, setChosenFront] = useState<ChosenFrontRecord | null>(() => loadChosenFront());
   const [activePackage, setActivePackage] = useState<DisguisePackage | null>(() =>
-    loadActiveDisguisePackage(receiptState.cover01Burned),
+    cover02?.disguisePackage ?? (receiptState.cover01Burned ? null : cover?.disguisePackage ?? null),
   );
   const [runReceipt, setRunReceipt] = useState<RunReceipt | null>(() => loadRunReceipt());
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
@@ -333,6 +336,28 @@ export default function App() {
     setStage("mark-v2-reveal");
   };
 
+  const handleArtworkSelection = (
+    dataUrl: string,
+    templateId: CoverTemplateId | null,
+    slot: DisguisePackageSlot,
+  ) => {
+    const pkg = createDisguisePackage(dataUrl, templateId, chosenFront?.resolvedFrontId, undefined, slot);
+    const persisted = replaceDisguisePackage(slot, pkg);
+    setActivePackage(pkg);
+    setPersistWarning(!persisted);
+  };
+
+  const packageForCommit = (dataUrl: string, slot: DisguisePackageSlot): DisguisePackage => {
+    const current = activePackage?.slot === slot ? activePackage : loadDisguisePackage(slot);
+    return createDisguisePackage(
+      dataUrl,
+      current?.templateId ?? null,
+      current?.identityMetadata.frontId ?? chosenFront?.resolvedFrontId,
+      current?.customization,
+      slot,
+    );
+  };
+
   /** COVER//01 lock: validated output + fresh analysis + creative metrics into own slots. */
   const handleCoverCommit = (
     dataUrl: string,
@@ -340,11 +365,9 @@ export default function App() {
     metrics?: CreativeMetrics,
   ) => {
     const lockedAt = new Date().toISOString();
-    const pkg = activePackage ?? createDisguisePackage(dataUrl, null, chosenFront?.resolvedFrontId);
-    const updatedPkg = { ...pkg, identityArtwork: dataUrl };
-    saveDisguisePackage(updatedPkg, "COVER//01");
-    setActivePackage(updatedPkg);
+    const updatedPkg = packageForCommit(dataUrl, "COVER//01");
     const persisted = saveCoverRecord(dataUrl, analysis, lockedAt, updatedPkg);
+    setActivePackage(updatedPkg);
     setCover({
       image: dataUrl,
       analysis,
@@ -370,11 +393,9 @@ export default function App() {
     metrics?: CreativeMetrics,
   ) => {
     const lockedAt = new Date().toISOString();
-    const pkg = activePackage ?? createDisguisePackage(dataUrl, null, chosenFront?.resolvedFrontId);
-    const updatedPkg = { ...pkg, identityArtwork: dataUrl };
-    saveDisguisePackage(updatedPkg, "COVER//02");
-    setActivePackage(updatedPkg);
+    const updatedPkg = packageForCommit(dataUrl, "COVER//02");
     const persisted = saveCover02Record(dataUrl, analysis, signature, lockedAt, updatedPkg);
+    setActivePackage(updatedPkg);
     setCover02({
       image: dataUrl,
       analysis,
@@ -484,17 +505,13 @@ export default function App() {
       saveReceiptState(reviewed);
       console.info("[crewmark] Receipts reviewed — burn heat already paid.");
     }
+    setActivePackage(cover02?.disguisePackage ?? null);
   };
 
   const handleReset = () => {
     clearMark();
     clearMarkV2();
     clearProgress();
-    try {
-      localStorage.removeItem("crewmark:r:template_id");
-    } catch {
-      // Ignored
-    }
     clearJob01Accepted();
     clearCoverRecord();
     clearMission();
@@ -812,14 +829,41 @@ export default function App() {
                   initialImage={cover02 ? cover02.image : cover ? cover.image : coverStarter}
                   hasExistingCover={activeCover !== null}
                   onCommit={handleCoverCommit}
-                  onBack={() => setStage("job-yard")}
+                  onBack={() => {
+                    const slot: DisguisePackageSlot = cover02 || (receiptState.cover01Burned && !cover02)
+                      ? "COVER//02"
+                      : "COVER//01";
+                    const lockedPackage = slot === "COVER//02" ? cover02?.disguisePackage : cover?.disguisePackage;
+                    if (lockedPackage) {
+                      replaceDisguisePackage(slot, lockedPackage);
+                      setActivePackage(lockedPackage);
+                    } else {
+                      clearDisguisePackage(slot);
+                      setActivePackage(null);
+                    }
+                    setStage("job-yard");
+                  }}
                   isRotationMode={receiptState.cover01Burned && !cover02}
                   isEditingCover02={!!cover02}
+                  packageSlot={cover02 || (receiptState.cover01Burned && !cover02) ? "COVER//02" : "COVER//01"}
+                  onSelectArtwork={handleArtworkSelection}
                   burnedCover01={cover ? { image: cover.image, score: cover.analysis.score } : null}
                   onCommitRotation={handleCover02Commit}
                   onOpenVehicleEditor={() => {
-                    if (!activePackage && coverStarter) {
-                      const initialPkg = createDisguisePackage(coverStarter, null, chosenFront?.resolvedFrontId);
+                    const slot: DisguisePackageSlot = cover02 || (receiptState.cover01Burned && !cover02)
+                      ? "COVER//02"
+                      : "COVER//01";
+                    const slotPackage = loadDisguisePackage(slot);
+                    if (slotPackage) {
+                      setActivePackage(slotPackage);
+                    } else {
+                      const initialPkg = createDisguisePackage(
+                        coverStarter,
+                        null,
+                        chosenFront?.resolvedFrontId,
+                        undefined,
+                        slot,
+                      );
                       setActivePackage(initialPkg);
                     }
                     setStage("vehicle-editor");
@@ -879,27 +923,44 @@ export default function App() {
                   currentPackage={
                     activePackage ??
                     createDisguisePackage(
-                      cover?.image ?? coverStarter ?? "",
+                      cover02?.image ?? cover?.image ?? coverStarter ?? "",
                       null,
                       chosenFront?.resolvedFrontId,
+                      undefined,
+                      cover02 || (receiptState.cover01Burned && !cover02) ? "COVER//02" : "COVER//01",
                     )
                   }
                   onSave={(updated) => {
                     setActivePackage(updated);
-                    if (cover) {
+                    if (updated.slot === "COVER//02" && cover02?.image === updated.identityArtwork) {
+                      setCover02((prev) =>
+                        prev
+                          ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery }
+                          : null,
+                      );
+                    } else if (updated.slot === "COVER//01" && cover?.image === updated.identityArtwork) {
                       setCover((prev) =>
                         prev
-                          ? {
-                              ...prev,
-                              disguisePackage: updated,
-                              vehicleLivery: updated.vehicleLivery,
-                            }
+                          ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery }
                           : null,
                       );
                     }
                     setStage("job-yard");
                   }}
-                  onBack={() => setStage("job-yard")}
+                  onBack={() => {
+                    const slot: DisguisePackageSlot = cover02 || (receiptState.cover01Burned && !cover02)
+                      ? "COVER//02"
+                      : "COVER//01";
+                    const lockedPackage = slot === "COVER//02" ? cover02?.disguisePackage : cover?.disguisePackage;
+                    if (lockedPackage) {
+                      replaceDisguisePackage(slot, lockedPackage);
+                      setActivePackage(lockedPackage);
+                    } else {
+                      clearDisguisePackage(slot);
+                      setActivePackage(null);
+                    }
+                    setStage("job-yard");
+                  }}
                 />
               </motion.div>
             )}
