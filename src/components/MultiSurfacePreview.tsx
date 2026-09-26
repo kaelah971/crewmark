@@ -23,6 +23,7 @@ import {
 
 export interface MultiSurfacePreviewProps {
   coverDataUrl: string;
+  identityArtwork?: string;
   frontName?: string;
   readinessScore?: number;
   cityAttention?: string;
@@ -45,6 +46,7 @@ const SURFACE_ICONS: Record<SurfaceId, typeof Car> = {
 
 export default function MultiSurfacePreview({
   coverDataUrl,
+  identityArtwork,
   frontName,
   readinessScore,
   cityAttention,
@@ -263,7 +265,7 @@ export default function MultiSurfacePreview({
               <div>
                 <SurfaceMockup
                   surfaceId={activeSurface}
-                  coverDataUrl={coverDataUrl}
+                  coverDataUrl={identityArtwork ?? coverDataUrl}
                   vehicleLivery={vehicleLivery}
                   detailed={detailed}
                   onToggleInspect={() => setDetailed(!detailed)}
@@ -478,7 +480,7 @@ export default function MultiSurfacePreview({
                 >
                   <SurfaceMockup
                     surfaceId={id}
-                    coverDataUrl={coverDataUrl}
+                    coverDataUrl={identityArtwork ?? coverDataUrl}
                     vehicleLivery={vehicleLivery}
                     detailed={false}
                     showInspectorButton={false}

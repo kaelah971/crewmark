@@ -5,6 +5,7 @@ import SurfaceMockup from "./SurfaceMockup";
 import MultiSurfacePreview from "./MultiSurfacePreview";
 import ForgeryBay from "./ForgeryBay";
 import { FRONT_OPTIONS } from "../lib/fronts";
+import { createDisguisePackage } from "../lib/disguisePackage";
 
 describe("P6 UI Components SSR / Rendering", () => {
   const dummyCoverUrl =
@@ -34,7 +35,7 @@ describe("P6 UI Components SSR / Rendering", () => {
   });
 
   describe("SurfaceMockup", () => {
-    it("renders CAR mockup with exact cover image", () => {
+    it("renders a clean CAR mockup without package artwork", () => {
       const html = renderToString(
         <SurfaceMockup surfaceId="CAR" coverDataUrl={dummyCoverUrl} />,
       );
@@ -42,7 +43,7 @@ describe("P6 UI Components SSR / Rendering", () => {
       expect(html).toContain("UNIT 305 // VICE CONTRACTOR FLEET");
       expect(html).toContain("FLEET");
       expect(html).toContain("VEHICLE DOOR");
-      expect(html).toContain(dummyCoverUrl);
+      expect(html).not.toContain(dummyCoverUrl);
     });
 
     it("renders CRATE mockup with freight details", () => {
@@ -126,6 +127,34 @@ describe("P6 UI Components SSR / Rendering", () => {
       expect(html).toContain("Continue to 305");
       expect(html).toContain("Lock &amp; Print");
     });
+    it("keeps identity artwork and vehicle livery on one package", () => {
+      const packageValue = createDisguisePackage(
+        "data:image/png;base64,BUGOUT",
+        "bug-out-305",
+        undefined,
+        undefined,
+        "COVER//01",
+      );
+      const html = renderToString(
+        <MultiSurfacePreview
+          coverDataUrl={packageValue.identityArtwork}
+          identityArtwork={packageValue.identityArtwork}
+          vehicleLivery={packageValue.vehicleLivery}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(html).toContain(packageValue.vehicleLivery.bodyBaseColor);
+      const crate = renderToString(
+        <SurfaceMockup
+          surfaceId="CRATE"
+          coverDataUrl={packageValue.identityArtwork}
+          vehicleLivery={packageValue.vehicleLivery}
+        />,
+      );
+      expect(crate).toContain(packageValue.identityArtwork);
+      expect(crate).toContain("CARGO CRATE");
+    });
+
   });
 
   describe("ForgeryBay", () => {

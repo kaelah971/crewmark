@@ -30,7 +30,7 @@ import {
 import MultiSurfacePreview from "./MultiSurfacePreview";
 import TemplateGallery from "./TemplateGallery";
 import { loadCoverTemplateDataUrl, type CoverTemplateId } from "../lib/coverTemplates";
-import type { DisguisePackageSlot } from "../lib/disguisePackage";
+import type { DisguisePackage, DisguisePackageSlot } from "../lib/disguisePackage";
 import {
   createStarterTemplate,
   loadChosenFront,
@@ -75,6 +75,7 @@ export interface ForgeryBayProps {
     creativeMetrics?: CreativeMetrics,
   ) => void;
   chosenFront?: ChosenFrontRecord | null;
+  disguisePackage?: DisguisePackage | null;
   startInGallery?: boolean;
   packageSlot?: DisguisePackageSlot;
   onSelectArtwork?: (dataUrl: string, templateId: CoverTemplateId | null, slot: DisguisePackageSlot) => void;
@@ -104,6 +105,7 @@ export default function ForgeryBay({
   burnedCover01 = null,
   onCommitRotation,
   chosenFront: initialChosenFront,
+  disguisePackage,
   startInGallery,
   packageSlot,
   onSelectArtwork,
@@ -916,6 +918,7 @@ export default function ForgeryBay({
       {previewOpen && (
         <MultiSurfacePreview
           coverDataUrl={candidateImage ?? currentImage}
+          identityArtwork={candidateImage ?? currentImage}
           frontName={frontName}
           readinessScore={metrics?.coverReadiness ?? analysis?.score}
           cityAttention={metrics?.cityAttention}
@@ -928,6 +931,7 @@ export default function ForgeryBay({
           onContinueTo305={onBack}
           canLock={!analysis?.blank && (analysis?.score ?? 0) > 0}
           isCover02={isV2}
+          vehicleLivery={disguisePackage?.vehicleLivery}
         />
       )}
 

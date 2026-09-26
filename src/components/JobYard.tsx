@@ -25,7 +25,6 @@ import yardPlate from "../assets/world/yard-wide.png";
 import playerSprite from "../assets/world/player-idle.png";
 import SurfaceMockup from "./SurfaceMockup";
 import { type SurfaceId } from "../lib/multiSurfacePreview";
-import { deriveVehicleLivery } from "../lib/vehicleLivery";
 import { VehicleLiveryProjection } from "./VehicleLiveryProjection";
 
 interface JobYardProps {
@@ -125,10 +124,7 @@ export default function JobYard({
       return false;
     }
   });
-  const resolvedVehicleLivery =
-    disguisePackage?.vehicleLivery ??
-    vehicleLivery ??
-    (cover ? deriveVehicleLivery(cover.image) : DEFAULT_CLEAN_VEHICLE_LIVERY);
+  const resolvedVehicleLivery = disguisePackage?.vehicleLivery ?? vehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY;
   const [inspectSurface, setInspectSurface] = useState<SurfaceId | null>(null);
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
 
@@ -480,9 +476,9 @@ export default function JobYard({
                 : h.id === "print-shop"
                   ? { title: "FORGERY GARAGE", action: coverBurned ? "CLICK TO ROTATE COVER" : "CLICK TO BUILD / EDIT COVER" }
                   : h.id === "vehicle"
-                    ? { title: "VEHICLE", action: cover ? "INSPECT / TEST COVER" : "NO COVER APPLIED" }
+                    ? { title: "VEHICLE", action: disguisePackage ? "INSPECT / TEST COVER" : "NO COVER APPLIED" }
                     : h.id === "exit-gate"
-                      ? { title: "EXIT / GATE", action: cover ? "CLICK TO DEPART" : "PREP THE COVER FIRST" }
+                      ? { title: "EXIT / GATE", action: disguisePackage ? "CLICK TO DEPART" : "PREP THE COVER FIRST" }
                       : { title: h.label, action: "CLICK TO INSPECT" }}
             />
           );
@@ -492,7 +488,7 @@ export default function JobYard({
           className="cm-vehicle-cover cm-vehicle-hitbox"
           role="button"
           tabIndex={0}
-          title={cover ? "Parked crew sedan — Click to inspect disguise or edit vehicle" : "Parked crew sedan — Clean / Undisguised State"}
+          title={disguisePackage ? "Parked crew sedan — Click to inspect disguise or edit vehicle" : "Parked crew sedan — Clean / Undisguised State"}
           onClick={() => interact("vehicle")}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") interact("vehicle");
@@ -502,7 +498,7 @@ export default function JobYard({
           <VehicleLiveryProjection livery={resolvedVehicleLivery} angle="yard" className="cm-vehicle-livery--yard" />
         </div>
 
-        {cover ? (
+        {disguisePackage ? (
           <>
             {/* 2. In-world shipping crate/package payoff */}
             <div
@@ -516,7 +512,7 @@ export default function JobYard({
               }}
             >
               <div className="cm-crate-marking">
-                <img src={cover.image} alt="Crate manifest" draggable={false} />
+                <img src={disguisePackage.identityArtwork} alt="Crate manifest" draggable={false} />
               </div>
               <span className="cm-crate-tag">CRATE // MANIFEST</span>
             </div>
@@ -535,7 +531,7 @@ export default function JobYard({
               <div className="cm-jacket-hanger-badge">
                 <span className="cm-prop-label">CREW JACKET</span>
                 <div className="cm-jacket-mini-patch">
-                  <img src={cover.image} alt="Jacket patch" draggable={false} />
+                  <img src={disguisePackage.identityArtwork} alt="Jacket patch" draggable={false} />
                 </div>
               </div>
             </div>
@@ -554,7 +550,7 @@ export default function JobYard({
               <div className="cm-pass-badge">
                 <span className="cm-prop-label">GATE PASS</span>
                 <div className="cm-pass-mini-card">
-                  <img src={cover.image} alt="Gate badge" draggable={false} />
+                  <img src={disguisePackage.identityArtwork} alt="Gate badge" draggable={false} />
                 </div>
               </div>
             </div>
@@ -819,12 +815,11 @@ export default function JobYard({
         </div>
       ) : null}
 
-      {inspectSurface && cover && (
+      {inspectSurface && disguisePackage && cover && (
         <div
           className="cm-surface-detail-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={`${inspectSurface} detail inspection`}
           onClick={() => setInspectSurface(null)}
         >
           <div
@@ -850,7 +845,8 @@ export default function JobYard({
             <div className="cm-surface-detail-body">
               <SurfaceMockup
                 surfaceId={inspectSurface}
-                coverDataUrl={cover.image}
+                coverDataUrl={disguisePackage.identityArtwork}
+                vehicleLivery={disguisePackage.vehicleLivery}
                 detailed={true}
                 showInspectorButton={false}
               />

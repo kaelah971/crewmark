@@ -88,7 +88,6 @@ import {
   type CheckpointBranch,
   type MissionState,
 } from "./world/mission";
-import { deriveVehicleLivery } from "./lib/vehicleLivery";
 import VehicleEditor from "./components/VehicleEditor";
 import {
   type DisguisePackage,
@@ -228,20 +227,9 @@ export default function App() {
     [cover, cover02, receiptState.cover01Burned],
   );
 
-  const activeVehicleLivery = useMemo(() => {
-    if (activePackage) return activePackage.vehicleLivery;
-    if (!activeCover) return DEFAULT_CLEAN_VEHICLE_LIVERY;
-    return deriveVehicleLivery(activeCover.image, chosenFront?.resolvedFrontId);
-  }, [activePackage, activeCover, chosenFront?.resolvedFrontId]);
-
-  const cover01VehicleLivery = useMemo(
-    () => (cover?.vehicleLivery ?? (cover ? deriveVehicleLivery(cover.image, chosenFront?.resolvedFrontId) : null)),
-    [cover, chosenFront?.resolvedFrontId],
-  );
-  const cover02VehicleLivery = useMemo(
-    () => (cover02?.vehicleLivery ?? (cover02 ? deriveVehicleLivery(cover02.image, chosenFront?.resolvedFrontId) : null)),
-    [cover02, chosenFront?.resolvedFrontId],
-  );
+  const activeVehicleLivery = activePackage?.vehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY;
+  const cover01VehicleLivery = cover?.disguisePackage?.vehicleLivery ?? null;
+  const cover02VehicleLivery = cover02?.disguisePackage?.vehicleLivery ?? null;
   // Blank vinyl starter panel or existing cover data URL for the forgery bay.
   const coverStarter = useMemo(() => {
     if (cover02) return cover02.image;
@@ -846,6 +834,7 @@ export default function App() {
                   isRotationMode={receiptState.cover01Burned && !cover02}
                   isEditingCover02={!!cover02}
                   packageSlot={cover02 || (receiptState.cover01Burned && !cover02) ? "COVER//02" : "COVER//01"}
+                  disguisePackage={activePackage}
                   onSelectArtwork={handleArtworkSelection}
                   burnedCover01={cover ? { image: cover.image, score: cover.analysis.score } : null}
                   onCommitRotation={handleCover02Commit}
@@ -902,7 +891,7 @@ export default function App() {
                 <Mission
                   plateSrc={checkpointPlate}
                   snapshot={missionState.snapshot}
-                  livery={missionState.snapshot.vehicleLivery ?? deriveVehicleLivery(missionState.snapshot.coverImage, chosenFront?.resolvedFrontId)}
+                  livery={missionState.snapshot.vehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY}
                   heat={progress.heat}
                   initialPhase={resumeMissionPhase(missionState) ?? "departure"}
                   onCheckpoint={handleMissionCheckpoint}
@@ -931,19 +920,18 @@ export default function App() {
                     )
                   }
                   onSave={(updated) => {
-                    setActivePackage(updated);
-                    if (updated.slot === "COVER//02" && cover02?.image === updated.identityArtwork) {
-                      setCover02((prev) =>
-                        prev
-                          ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery }
-                          : null,
-                      );
-                    } else if (updated.slot === "COVER//01" && cover?.image === updated.identityArtwork) {
-                      setCover((prev) =>
-                        prev
-                          ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery }
-                          : null,
-                      );
+                    const lockedImage = updated.slot === "COVER//02" ? cover02?.image : cover?.image;
+                    const isLockedPackage = lockedImage === updated.identityArtwork;
+                    if (isLockedPackage) {
+                      replaceDisguisePackage(updated.slot, updated);
+                      setActivePackage(updated);
+                      if (updated.slot === "COVER//02") {
+                        setCover02((prev) => prev ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery } : null);
+                      } else {
+                        setCover((prev) => prev ? { ...prev, disguisePackage: updated, vehicleLivery: updated.vehicleLivery } : null);
+                      }
+                    } else {
+                      setActivePackage(updated.slot === "COVER//02" ? cover02?.disguisePackage ?? null : cover?.disguisePackage ?? null);
                     }
                     setStage("job-yard");
                   }}

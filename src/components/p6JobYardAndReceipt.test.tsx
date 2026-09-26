@@ -3,6 +3,7 @@ import { renderToString } from "react-dom/server";
 import JobYard from "./JobYard";
 import FinalRunReceipt from "./FinalRunReceipt";
 import { buildRunReceipt } from "../lib/runReceipt";
+import { createDisguisePackage } from "../lib/disguisePackage";
 
 describe("P6 JobYard and FinalRunReceipt UI", () => {
   const dummyCoverUrl =
@@ -49,6 +50,13 @@ describe("P6 JobYard and FinalRunReceipt UI", () => {
       expect(html).toContain("CHECK THE JOB TERMINAL");
     });
 
+      const disguisePackage = createDisguisePackage(
+        dummyCoverUrl,
+        "bug-out-305",
+        undefined,
+        undefined,
+        "COVER//01",
+      );
     it("renders in-world payoffs (vehicle, crate, jacket, pass) when cover is active", () => {
       const html = renderToString(
         <JobYard
@@ -56,6 +64,7 @@ describe("P6 JobYard and FinalRunReceipt UI", () => {
           jobAccepted={true}
           onAcceptJob={vi.fn()}
           cover={{ image: dummyCoverUrl, score: 88 }}
+          disguisePackage={disguisePackage}
           onEditCover={vi.fn()}
           completed={false}
         />,

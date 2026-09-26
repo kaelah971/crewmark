@@ -4,7 +4,6 @@ import {
   getSurfaceDefinition,
 } from "../lib/multiSurfacePreview";
 import type { VehicleLivery } from "../lib/vehicleLivery";
-import { deriveVehicleLivery } from "../lib/vehicleLivery";
 import { ZoomIn, ZoomOut, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 export interface SurfaceMockupProps {
@@ -29,7 +28,7 @@ export default function SurfaceMockup({
   const [internalDetailed, setInternalDetailed] = useState(false);
   const def = getSurfaceDefinition(surfaceId);
   const isDetailed = externalDetailed !== undefined ? externalDetailed : internalDetailed;
-  const activeLivery = vehicleLivery ?? (surfaceId === "CAR" && coverDataUrl ? deriveVehicleLivery(coverDataUrl) : null);
+  const activeLivery = vehicleLivery ?? null;
   const handleToggle = () => {
     if (onToggleInspect) {
       onToggleInspect();
@@ -176,7 +175,7 @@ export default function SurfaceMockup({
                       filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.6))",
                     }}
                   />
-                ) : (
+                ) : activeLivery ? (
                   <img
                     src={coverDataUrl}
                     alt="Vehicle decal"
@@ -186,7 +185,7 @@ export default function SurfaceMockup({
                       objectFit: "contain",
                     }}
                   />
-                )}
+                ) : null}
                 {/* Surface lighting overlay */}
                 <div
                   style={{

@@ -40,7 +40,7 @@ export default function CoverInspection3D({
   const [loading, setLoading] = useState(true);
 
   const activeImage = selectedSlot === "cover02" && cover02Image ? cover02Image : cover01Image;
-  const activeLivery = selectedSlot === "cover02" && vehicleLivery02 ? vehicleLivery02 : vehicleLivery01;
+  const activeLivery = selectedSlot === "cover02" ? vehicleLivery02 : vehicleLivery01;
   const initialImageRef = useRef(activeImage);
   const initialLiveryRef = useRef(activeLivery);
   const onBackRef = useRef(onBackToYard);
@@ -72,10 +72,10 @@ export default function CoverInspection3D({
   // Update texture when toggling between Cover 01 and Cover 02
   const handleToggleCover = (slot: "cover01" | "cover02") => {
     setSelectedSlot(slot);
-    const targetUrl = slot === "cover02" && cover02Image ? cover02Image : cover01Image;
+    const targetUrl = slot === "cover02" ? cover02Image : cover01Image;
     if (targetUrl && sceneRef.current) {
       sceneRef.current.setCoverTexture(targetUrl);
-      const targetLivery = slot === "cover02" && vehicleLivery02 ? vehicleLivery02 : vehicleLivery01;
+      const targetLivery = slot === "cover02" ? vehicleLivery02 : vehicleLivery01;
       if (targetLivery) sceneRef.current.setVehicleLivery(targetLivery);
     }
   };
