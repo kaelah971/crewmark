@@ -54,6 +54,7 @@ function sanitize(raw: unknown): MissionState | null {
     started: true,
     snapshot: {
       coverImage: typeof snapshot.coverImage === "string" ? snapshot.coverImage : "",
+      coverAssetRef: snapshot.coverAssetRef as CoverAssetRef | undefined,
       coverLockedAt: snapshot.coverLockedAt,
       analysis: snapshot.analysis,
       score: snapshot.score,
@@ -65,6 +66,10 @@ function sanitize(raw: unknown): MissionState | null {
     checkpointHeatPaid: v.checkpointHeatPaid === true,
     completed: v.completed === true,
     repPaid: v.repPaid === true,
+    ...(typeof v.missionRunId === "string" && v.missionRunId ? { missionRunId: v.missionRunId } : {}),
+    ...(v.status === "active" || v.status === "aborted" || v.status === "completed" ? { status: v.status } : {}),
+    ...(typeof v.completedAt === "string" ? { completedAt: v.completedAt } : {}),
+    ...(typeof v.completionRewardPaid === "boolean" ? { completionRewardPaid: v.completionRewardPaid } : {}),
   };
 }
 

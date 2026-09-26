@@ -131,26 +131,40 @@ export interface MissionSnapshot {
   readonly vehicleLivery?: VehicleLivery;
 }
 
+export type MissionStatus = "active" | "aborted" | "completed";
+
 export interface MissionState {
   readonly started: boolean;
+  readonly missionRunId?: string;
+  readonly status?: MissionStatus;
   readonly snapshot: MissionSnapshot | null;
   readonly checkpoint: CheckpointBranch | null;
   readonly checkpointHeatPaid: boolean;
   readonly completed: boolean;
+  readonly completedAt?: string;
   readonly repPaid: boolean;
+  readonly completionRewardPaid?: boolean;
 }
 
 export const EMPTY_MISSION: MissionState = {
   started: false,
+  missionRunId: "",
   snapshot: null,
   checkpoint: null,
   checkpointHeatPaid: false,
   completed: false,
   repPaid: false,
+  completionRewardPaid: false,
 };
 
-/** Snapshot the locked cover at START JOB. The record itself is never stored here. */
-export function startMissionState(cover: CoverRecord, pkg?: DisguisePackage): MissionState {
+export function createMissionRunId(): string {
+  return `mission-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+export function startMissionState(
+  cover: CoverRecord,
+  pkg?: DisguisePackage,
+  missionRunId: string = createMissionRunId(),
+): MissionState {
   const disguise =
     pkg ??
     cover.disguisePackage ??
@@ -158,6 +172,8 @@ export function startMissionState(cover: CoverRecord, pkg?: DisguisePackage): Mi
 
   return {
     started: true,
+    missionRunId,
+    status: "active",
     snapshot: {
       coverImage: cover.image,
       coverAssetRef: cover.assetRef,
@@ -175,6 +191,7 @@ export function startMissionState(cover: CoverRecord, pkg?: DisguisePackage): Mi
     checkpointHeatPaid: false,
     completed: false,
     repPaid: false,
+    completionRewardPaid: false,
   };
 }
 
@@ -195,16 +212,16 @@ export function withCheckpointHeatPaid(state: MissionState): MissionState {
 
 /** True only when the completion reward has not been paid yet. */
 export function shouldPayCompletion(state: MissionState): boolean {
-  return state.completed && !state.repPaid;
+  return state.completed && !state.completionRewardPaid && !state.repPaid;
 }
 
 export function withCompleted(state: MissionState): MissionState {
   if (state.completed) return state;
-  return { ...state, completed: true };
+  return { ...state, completed: true, status: "completed", completedAt: new Date().toISOString() };
 }
 
 export function withRepPaid(state: MissionState): MissionState {
-  return { ...state, repPaid: true };
+  return { ...state, repPaid: true, completionRewardPaid: true };
 }
 
 export interface CoverAnchor {

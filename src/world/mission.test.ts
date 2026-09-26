@@ -143,10 +143,24 @@ describe("mission rewards apply once", () => {
       lockedAt: "2026-01-01T00:00:00.000Z",
     });
     expect(state.started).toBe(true);
+    expect(state.status).toBe("active");
     expect(state.snapshot?.coverImage).toBe("data:image/png;base64,Q292ZXI=");
     expect(state.snapshot?.coverLockedAt).toBe("2026-01-01T00:00:00.000Z");
     expect(state.snapshot?.score).toBe(analysis.score);
     expect(state.checkpoint).toBeNull();
+  });
+
+  it("creates a stable mission run identity and preserves it across resume", () => {
+    const cover = {
+      image: "data:image/png;base64,Q292ZXI=",
+      analysis: CLEAN(),
+      lockedAt: "2026-01-01T00:00:00.000Z",
+    };
+    const first = startMissionState(cover);
+    const resumed = { ...first, checkpoint: "clean" as const };
+    expect(first.missionRunId).toBeTruthy();
+    expect(resumed.missionRunId).toBe(first.missionRunId);
+    expect(resumed.snapshot).toBe(first.snapshot);
   });
   function started(): MissionState {
     return {
@@ -168,13 +182,14 @@ describe("mission rewards apply once", () => {
     expect(withCheckpoint(state, "manual")).toBe(state);
     expect(shouldPayCheckpointHeat(state)).toBe(false);
   });
-
-  it("completion REP pays once", () => {
+  it("completion moves the run to terminal completed status before reward payout", () => {
     let state = withCompleted(started());
+    expect(state.status).toBe("completed");
     expect(shouldPayCompletion(state)).toBe(true);
     state = withRepPaid(state);
+    expect(state.completionRewardPaid).toBe(true);
     expect(shouldPayCompletion(state)).toBe(false);
-    expect(withCompleted(state).completed).toBe(true);
+    expect(withCompleted(state)).toBe(state);
   });
 });
 
@@ -192,6 +207,18 @@ describe("mission persistence", () => {
 
   it("round-trips the full record (refresh path)", () => {
     const state = fullState();
+    expect(saveMission(state)).toBe(true);
+    expect(loadMission()).toEqual(state);
+  });
+
+  it("persists run identity and aborted status for resumable handoff", () => {
+    const state = {
+      ...fullState(),
+      missionRunId: "mission-test",
+      status: "aborted" as const,
+      completed: false,
+      repPaid: false,
+    };
     expect(saveMission(state)).toBe(true);
     expect(loadMission()).toEqual(state);
   });

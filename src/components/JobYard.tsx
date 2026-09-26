@@ -38,6 +38,8 @@ interface JobYardProps {
   onEditCover: () => void;
   onEditVehicle?: () => void;
   onStartJob?: () => void;
+  /** A started but incomplete mission freezes the package. */
+  missionActive?: boolean;
   /** P7C: Open 3D vehicle inspection mode */
   onInspect3DCover?: () => void;
   /** P6: View final run receipt */
@@ -101,6 +103,7 @@ export default function JobYard({
   disguisePackage,
   vehicleLivery,
   onEditVehicle,
+  missionActive = false,
 }: JobYardProps) {
   const [_player, setPlayer] = useState<PlayerState>({
     pos: { ...JOB_YARD_SPAWN },
@@ -183,6 +186,10 @@ export default function JobYard({
       return;
     }
     if (id === "print-shop") {
+      if (missionActive) {
+        showFocus({ title: "RUN ACTIVE", line: "DISGUISE FROZEN // RESUME TEST FROM THE VEHICLE" });
+        return;
+      }
       if (coverVersion === "COVER//02") {
         onEditCover();
         return;
@@ -347,18 +354,20 @@ export default function JobYard({
             ? "REVIEW TRACE"
             : "CHECK TERMINAL"
       : nearHotspot.id === "print-shop"
-        ? isCover02
-          ? "EDIT COVER//02"
-          : coverBurned
-            ? "ROTATE COVER"
-            : cover
-              ? "EDIT COVER"
-              : jobAccepted
-                ? "WORK ORDER"
-                : "ENTER PRINT SHOP"
+        ? missionActive
+          ? "RUN ACTIVE"
+          : isCover02
+            ? "EDIT COVER//02"
+            : coverBurned
+              ? "ROTATE COVER"
+              : cover
+                ? "EDIT IDENTITY"
+                : jobAccepted
+                  ? "WORK ORDER"
+                  : "ENTER PRINT SHOP"
         : nearHotspot.id === "vehicle"
-          ? cover && !coverBurned && !completed
-            ? "TEST THE COVER"
+          ? missionActive
+            ? "RESUME TEST"
             : isCover02
               ? "INSPECT COVER//02"
               : coverBurned
@@ -651,7 +660,7 @@ export default function JobYard({
             )}
           </h2>
           <p className="cm-workorder-objective">
-            {cover
+            {missionActive ? "RUN ACTIVE // DISGUISE FROZEN. Resume the same mission run; editing is locked." : cover
               ? (coverVersion === "COVER//02"
                   ? "Rotated signature livery is active on vehicle."
                   : "Contractor cover livery is mounted and ready for inspection.")
@@ -675,28 +684,35 @@ export default function JobYard({
                     INSPECT COVER (3D)
                   </button>
                 )}
-                {onEditVehicle && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      setVehicleModalOpen(false);
-                      onEditVehicle();
-                    }}
-                  >
-                    EDIT VEHICLE
-                  </button>
+                {!missionActive && (
+                  <>
+                    <button type="button" className="btn btn-secondary" onClick={() => { setVehicleModalOpen(false); onEditCover(); }}>
+                      EDIT IDENTITY
+                    </button>
+                    {onEditVehicle && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setVehicleModalOpen(false);
+                          onEditVehicle();
+                        }}
+                      >
+                        EDIT VEHICLE
+                      </button>
+                    )}
+                  </>
                 )}
                 {onStartJob && !completed && !coverBurned && (
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-primary"
                     onClick={() => {
                       setVehicleModalOpen(false);
                       onStartJob();
                     }}
                   >
-                    TEST THE COVER
+                    {missionActive ? "RESUME TEST" : "TEST THE COVER"}
                   </button>
                 )}
               </>

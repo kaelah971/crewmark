@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { clearCoverAssets } from "./lib/coverAssetStore";
 import { AnimatePresence, motion } from "motion/react";
 import { clearMission, loadMission, loadMissionAsync, saveMissionAsync } from "./lib/missionStorage";
@@ -84,6 +84,7 @@ import {
   resumeMissionPhase,
   shouldPayCheckpointHeat,
   shouldPayCompletion,
+  createMissionRunId,
   startMissionState,
   withCheckpoint,
   withCheckpointHeatPaid,
@@ -198,7 +199,8 @@ export default function App() {
   const [cover, setCover] = useState<CoverRecord | null>(() => loadCoverRecord());
   const [cover02, setCover02] = useState<Cover02Record | null>(() => loadCover02Record());
   const [missionState, setMissionState] = useState<MissionState | null>(() => loadMission());
-  // P3.5A-R.4 receipt state: CCTV review, burned cover flag, consequence heat.
+  const missionConsequenceBusy = useRef(false);
+  const receiptConsequenceBusy = useRef(false);
   const [receiptState, setReceiptState] = useState<ReceiptState>(() => loadReceiptState());
   // P6 Creative Playground: chosen front and final run receipt state.
   const [chosenFront, setChosenFront] = useState<ChosenFrontRecord | null>(() => loadChosenFront());
@@ -357,6 +359,42 @@ export default function App() {
     setPersistWarning(!persisted);
   };
 
+  const handleEditIdentity = () => {
+    if (missionState?.started && !missionState.completed) return;
+    if (receiptState.cover01Burned && !cover02 && cover) {
+      const provisional = createDisguisePackage(
+        cover.image,
+        cover.templateId ?? null,
+        chosenFront?.resolvedFrontId,
+        undefined,
+        "COVER//02",
+      );
+      setActivePackage(provisional);
+      void replaceDisguisePackageAsync("COVER//02", provisional);
+    }
+    if (!chosenFront) {
+      setStage("front-terminal");
+    } else {
+      setStage("forgery-bay");
+    }
+  };
+
+  const handleEditVehicle = () => {
+    if (missionState?.started && !missionState.completed) return;
+    if (receiptState.cover01Burned && !cover02 && cover) {
+      const provisional = createDisguisePackage(
+        cover.image,
+        cover.templateId ?? null,
+        chosenFront?.resolvedFrontId,
+        undefined,
+        "COVER//02",
+      );
+      setActivePackage(provisional);
+      void replaceDisguisePackageAsync("COVER//02", provisional);
+    }
+    setStage("vehicle-editor");
+  };
+
   const packageForCommit = (dataUrl: string, slot: DisguisePackageSlot): DisguisePackage => {
     const current = activePackage?.slot === slot ? activePackage : loadDisguisePackage(slot);
     return createDisguisePackage(
@@ -374,6 +412,7 @@ export default function App() {
     analysis: CoverAnalysis,
     metrics?: CreativeMetrics,
   ) => {
+    if (missionState?.started && !missionState.completed) return;
     const lockedAt = new Date().toISOString();
     const updatedPkg = packageForCommit(dataUrl, "COVER//01");
     const persisted = await saveCoverRecordAsync(dataUrl, analysis, lockedAt, updatedPkg);
@@ -402,9 +441,11 @@ export default function App() {
     signature: VisualSignatureComparison,
     metrics?: CreativeMetrics,
   ) => {
+    if (missionState?.started && !missionState.completed) return;
     const lockedAt = new Date().toISOString();
     const updatedPkg = packageForCommit(dataUrl, "COVER//02");
     const persisted = await saveCover02RecordAsync(dataUrl, analysis, signature, lockedAt, updatedPkg);
+    setPersistWarning(!persisted);
     setActivePackage(updatedPkg);
     setCover02({
       image: dataUrl,
@@ -415,14 +456,13 @@ export default function App() {
       disguisePackage: updatedPkg,
       vehicleLivery: updatedPkg.vehicleLivery,
     });
-    setPersistWarning(!persisted);
     console.info("[crewmark] COVER//02 locked with linked disguise package.", {
       distance: signature.signatureDistance,
       cityMatch: signature.cityMatchEstimate,
     });
     if (chosenFront && metrics) {
       const receipt = buildRunReceipt({
-        runId: `run-${Date.now().toString(36)}`,
+        runId: missionState?.missionRunId ?? `run-${Date.now().toString(36)}`,
         front: chosenFront,
         coverVersion: "COVER//02",
         coverDataUrl: dataUrl,
@@ -443,12 +483,30 @@ export default function App() {
     setStage("print-apply");
   };
   const handleStartJob = async () => {
+    if (missionState?.started && !missionState.completed) {
+      const resumed = missionState.status === "aborted" || !missionState.missionRunId
+        ? {
+            ...missionState,
+            missionRunId: missionState.missionRunId ?? createMissionRunId(),
+            ...(missionState.status === "aborted" ? { status: "active" as const } : {}),
+          }
+        : missionState;
+      if (resumed !== missionState) {
+        const persisted = await saveMissionAsync(resumed);
+        setMissionState(resumed);
+        setPersistWarning(!persisted);
+      }
+      setStage("mission");
+      return;
+    }
     if (!cover) return;
-    const nextMission = startMissionState(cover, cover.disguisePackage ?? activePackage ?? undefined);
+    const runPackage = activePackage?.slot === "COVER//01" ? activePackage : cover.disguisePackage;
+    const nextMission = startMissionState(cover, runPackage);
     const persisted = await saveMissionAsync(nextMission);
     setMissionState(nextMission);
     setPersistWarning(!persisted);
     console.info("[crewmark] JOB//01 mission started with frozen disguise package snapshot.", {
+      missionRunId: nextMission.missionRunId,
       score: nextMission.snapshot?.score,
     });
     setStage("mission");
@@ -456,50 +514,69 @@ export default function App() {
 
   /** Checkpoint outcome: pays HEAT once, idempotently. */
   const handleMissionCheckpoint = async (branch: CheckpointBranch) => {
-    if (!missionState) return;
-    const withOutcome = withCheckpoint(missionState, branch);
-    if (shouldPayCheckpointHeat(withOutcome)) {
-      const heatGain = CHECKPOINT_HEAT[branch];
-      const paid = withCheckpointHeatPaid(withOutcome);
-      const persisted = await saveMissionAsync(paid);
-      setMissionState(paid);
-      setPersistWarning(!persisted);
-      setProgress((prev) => ({
-        ...prev,
-        heat: prev.heat + heatGain,
-      }));
-      console.info("[crewmark] Checkpoint heat applied.", { branch, heatGain });
-    } else {
-      console.info("[crewmark] Checkpoint heat already paid — no heat added.");
+    if (!missionState || missionConsequenceBusy.current) return;
+    missionConsequenceBusy.current = true;
+    try {
+      const withOutcome = withCheckpoint(missionState, branch);
+      if (shouldPayCheckpointHeat(withOutcome)) {
+        const heatGain = CHECKPOINT_HEAT[branch];
+        const paid = withCheckpointHeatPaid(withOutcome);
+        const persisted = await saveMissionAsync(paid);
+        setMissionState(paid);
+        setPersistWarning(!persisted);
+        setProgress((prev) => ({
+          ...prev,
+          heat: prev.heat + heatGain,
+        }));
+        console.info("[crewmark] Checkpoint heat applied.", { branch, heatGain });
+      } else {
+        console.info("[crewmark] Checkpoint heat already paid — no heat added.");
+      }
+    } finally {
+      missionConsequenceBusy.current = false;
     }
   };
 
   const handleMissionComplete = async () => {
-    if (!missionState) return;
-    const completedState = withCompleted(missionState);
-    if (shouldPayCompletion(completedState)) {
-      const paid = withRepPaid(completedState);
-      const persisted = await saveMissionAsync(paid);
-      setMissionState(paid);
-      setPersistWarning(!persisted);
-      setProgress((prev) => ({
-        ...prev,
-        rep: prev.rep + MISSION_REP_REWARD,
-      }));
-      console.info("[crewmark] Mission completed. Rep reward paid.", {
-        rep: MISSION_REP_REWARD,
-      });
-    } else {
-      console.info("[crewmark] Mission completion reward already paid.");
+    if (!missionState || missionConsequenceBusy.current) return;
+    missionConsequenceBusy.current = true;
+    try {
+      const completedState = withCompleted(missionState);
+      if (shouldPayCompletion(completedState)) {
+        const paid = withRepPaid(completedState);
+        const persisted = await saveMissionAsync(paid);
+        setMissionState(paid);
+        setPersistWarning(!persisted);
+        setProgress((prev) => ({
+          ...prev,
+          rep: prev.rep + MISSION_REP_REWARD,
+        }));
+        console.info("[crewmark] Mission completed. Rep reward paid.", {
+          rep: MISSION_REP_REWARD,
+        });
+      } else {
+        console.info("[crewmark] Mission completion reward already paid.");
+      }
+    } finally {
+      missionConsequenceBusy.current = false;
     }
   };
 
-  /** Return to 305 Print & Sign yard from mission result. */
-  const handleMissionExit = () => {
+  /** Abort is a durable pause; the frozen run remains resumable from 305. */
+  const handleMissionExit = async () => {
+    if (missionConsequenceBusy.current) return;
+    if (missionState?.started && !missionState.completed) {
+      const aborted = { ...missionState, status: "aborted" as const };
+      const persisted = await saveMissionAsync(aborted);
+      setMissionState(aborted);
+      setPersistWarning(!persisted);
+    }
     setStage("job-yard");
   };
-  /** Review of CCTV surveillance receipts completed: mark burned and apply HEAT +10 idempotently. */
+
   const handleCompleteReceiptReview = () => {
+    if (receiptConsequenceBusy.current) return;
+    receiptConsequenceBusy.current = true;
     const reviewed = withReceiptsReviewed(receiptState);
     if (shouldPayBurnHeat(reviewed)) {
       const paid = withBurnHeatPaid(reviewed);
@@ -546,6 +623,8 @@ export default function App() {
     setRunReceipt(null);
     setMissionState(null);
     setReceiptState(EMPTY_RECEIPT_STATE);
+    missionConsequenceBusy.current = false;
+    receiptConsequenceBusy.current = false;
     setAlpha(null);
     setAlphaV2(null);
     setPersistWarning(false);
@@ -730,14 +809,10 @@ export default function App() {
                 cover={activeCover ? { image: activeCover.image, score: activeCover.score } : null}
                 disguisePackage={activePackage}
                 vehicleLivery={activeVehicleLivery}
-                onEditCover={() => {
-                  if (!chosenFront) {
-                    setStage("front-terminal");
-                  } else {
-                    setStage("forgery-bay");
-                  }
-                }}
-                onEditVehicle={() => setStage("vehicle-editor")}
+                onEditCover={handleEditIdentity}
+                onEditVehicle={handleEditVehicle}
+                missionActive={Boolean(missionState?.started && !missionState.completed)}
+                completed={missionState?.completed ?? false}
                 onStartJob={handleStartJob}
                 onInspect3DCover={() => setStage("cover-inspection")}
                 onViewReceipt={() => setStage("final-run-receipt")}
@@ -820,6 +895,7 @@ export default function App() {
                 <CoverInspection3D
                   cover01Image={cover?.image ?? null}
                   cover02Image={cover02?.image ?? null}
+                  cover01Burned={receiptState.cover01Burned}
                   vehicleLivery01={cover01VehicleLivery}
                   vehicleLivery02={cover02VehicleLivery}
                   signature={cover02?.signature ?? null}

@@ -9,6 +9,7 @@ import { ArrowLeft, Play, Loader2 } from "lucide-react";
 export interface CoverInspection3DProps {
   cover01Image: string | null;
   cover02Image: string | null;
+  cover01Burned?: boolean;
   vehicleLivery01: VehicleLivery | null;
   vehicleLivery02: VehicleLivery | null;
   signature?: VisualSignatureComparison | null;
@@ -21,6 +22,7 @@ export interface CoverInspection3DProps {
 export default function CoverInspection3D({
   cover01Image,
   cover02Image,
+  cover01Burned = false,
   vehicleLivery01,
   vehicleLivery02,
   signature,
@@ -146,7 +148,7 @@ export default function CoverInspection3D({
               <>
                 COVER//02 <span style={{ color: "var(--cm-lime, #10B981)" }}>// ACTIVE</span>
               </>
-            ) : cover02Image ? (
+            ) : cover01Burned ? (
               <>
                 COVER//01 <span style={{ color: "var(--cm-red, #E11D48)" }}>// BURNED</span>
               </>
