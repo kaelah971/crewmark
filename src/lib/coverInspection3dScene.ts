@@ -1,19 +1,23 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import type { VehicleLivery } from "./vehicleLivery";
+import { applyLiveryPaint, buildLiveryDecals } from "./sedanSnapshot";
 
 export interface CoverInspection3DSceneResult {
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   renderer: THREE.WebGLRenderer;
   setCoverTexture: (url: string) => void;
+  setVehicleLivery: (livery: VehicleLivery) => void;
   setCameraPreset: (preset: "hero" | "side" | "rear" | "detail") => void;
   dispose: () => void;
 }
 
 export function initCoverInspection3D(
   container: HTMLElement,
-  initialCoverUrl: string | null,
+  _initialCoverUrl: string | null,
   onLoaded?: () => void,
+  initialLivery?: VehicleLivery | null,
 ): CoverInspection3DSceneResult {
   const width = container.clientWidth || window.innerWidth;
   const height = container.clientHeight || window.innerHeight;
@@ -23,20 +27,19 @@ export function initCoverInspection3D(
   scene.background = new THREE.Color(0x060709);
   scene.fog = new THREE.FogExp2(0x060709, 0.035);
 
-  // Perspective camera
   const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 80);
-  const target = new THREE.Vector3(0, 0.7, 0);
+  const target = new THREE.Vector3(0, 0.70, 0.20);
 
-  // Curated Camera Presets around vehicle (4.6m sedan)
+  // Curated Camera Presets around vehicle (4.6m sedan: +X is driver side, +Z is front, -Z is rear)
   const presets: Record<"hero" | "side" | "rear" | "detail", { radius: number; theta: number; phi: number }> = {
     // Front 3/4 hero angle (elevated, viewer looking at front-left driver side)
-    hero: { radius: 6.8, theta: 0.65, phi: 1.25 },
-    // Side view: directly facing the +Z driver door where the exact cover decal is mounted (theta = 0)
-    side: { radius: 5.6, theta: 0.0, phi: 1.35 },
-    // Rear 3/4 angle: showcasing taillights, roofline, and side wrap
-    rear: { radius: 6.8, theta: 2.50, phi: 1.25 },
-    // Cover detail view: zoomed in right onto the driver door decal (+Z)
-    detail: { radius: 3.2, theta: 0.0, phi: 1.38 },
+    hero: { radius: 6.8, theta: Math.PI / 4, phi: 1.22 },
+    // Side view: directly facing the +X driver door where the door badge is mounted
+    side: { radius: 5.6, theta: Math.PI / 2, phi: 1.35 },
+    // Rear 3/4 angle: showcasing taillights, roofline, and rear quarter markings
+    rear: { radius: 6.8, theta: (3 * Math.PI) / 4, phi: 1.22 },
+    // Cover detail view: zoomed in right onto the driver door badge (+X)
+    detail: { radius: 2.8, theta: Math.PI / 2, phi: 1.35 },
   };
 
   const spherical = new THREE.Spherical(presets.hero.radius, presets.hero.phi, presets.hero.theta);
@@ -107,30 +110,27 @@ export function initCoverInspection3D(
   contactShadow.position.y = 0.01;
   scene.add(contactShadow);
 
-  // --- CAR & EXACT COVER DECAL ---
-  let coverTexture: THREE.Texture | null = null;
+  // --- CAR & REAL FLEET BODY RESPRAY WITH SURFACE DECALS ---
+  let currentLivery = initialLivery ?? null;
   const textureLoader = new THREE.TextureLoader();
+  let carInstance: THREE.Group | null = null;
 
-  const applyTexture = (url: string) => {
-    textureLoader.load(url, (tex) => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.wrapS = THREE.ClampToEdgeWrapping;
-      tex.wrapT = THREE.ClampToEdgeWrapping;
-      coverTexture = tex;
+  const updateCarLivery = async () => {
+    if (!carInstance || !currentLivery) return;
 
-      const decalMesh = scene.getObjectByName("cover-decal-car") as THREE.Mesh;
-      if (decalMesh && decalMesh.material instanceof THREE.MeshStandardMaterial) {
-        decalMesh.material.map = tex;
-        decalMesh.material.needsUpdate = true;
-      }
-    });
+    // 1. Respray the real vehicle body materials (Paint 1, Paint 2, Brake)
+    applyLiveryPaint(carInstance, currentLivery);
+
+    // 2. Remove any previous decals
+    const oldDecals = carInstance.getObjectByName("livery-decals");
+    if (oldDecals) carInstance.remove(oldDecals);
+
+    // 3. Mount surface-conforming decals (emblems, unit numbers, markings)
+    const newDecals = await buildLiveryDecals(carInstance, currentLivery, textureLoader);
+    carInstance.add(newDecals);
   };
 
-  if (initialCoverUrl) {
-    applyTexture(initialCoverUrl);
-  }
-
-  // Load generic production sedan GLB
+  // Load generic production sedan GLB.
   const gltfLoader = new GLTFLoader();
   gltfLoader.load(
     "/models/sedan.glb",
@@ -145,30 +145,23 @@ export function initCoverInspection3D(
           child.castShadow = true;
           child.receiveShadow = true;
           if (child.material) {
-            child.material.envMapIntensity = 1.4;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            const cloned = mats.map((m) => {
+              if (m instanceof THREE.MeshStandardMaterial) {
+                const c = m.clone();
+                c.envMapIntensity = 1.4;
+                return c;
+              }
+              return m;
+            });
+            child.material = Array.isArray(child.material) ? cloned : cloned[0];
           }
         }
       });
 
-      // Mount exact 16:7 cover decal on driver door panel (+Z)
-      // 1.40m wide x 0.6125m high = exact 16:7 aspect ratio
-      const decalGeo = new THREE.PlaneGeometry(1.40, 0.6125);
-      const decalMat = new THREE.MeshStandardMaterial({
-        map: coverTexture,
-        roughness: 0.25,
-        metalness: 0.05,
-        transparent: true,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-      });
-      const decalMesh = new THREE.Mesh(decalGeo, decalMat);
-      decalMesh.name = "cover-decal-car";
-      // Positioned squarely over the driver front/rear door seam
-      decalMesh.position.set(-0.15, 0.68, 1.055);
-      car.add(decalMesh);
-
+      carInstance = car;
       scene.add(car);
+      updateCarLivery();
       if (onLoaded) onLoaded();
     },
     undefined,
@@ -289,7 +282,13 @@ export function initCoverInspection3D(
     scene,
     camera,
     renderer,
-    setCoverTexture: applyTexture,
+    setCoverTexture: (_url: string) => {
+      // Texture is driven by the active VehicleLivery
+    },
+    setVehicleLivery: (livery) => {
+      currentLivery = livery;
+      updateCarLivery();
+    },
     setCameraPreset: (presetKey) => {
       const p = presets[presetKey];
       if (p) {

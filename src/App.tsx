@@ -87,6 +87,16 @@ import {
   type CheckpointBranch,
   type MissionState,
 } from "./world/mission";
+import { deriveVehicleLivery } from "./lib/vehicleLivery";
+import VehicleEditor from "./components/VehicleEditor";
+import {
+  type DisguisePackage,
+  loadActiveDisguisePackage,
+  createDisguisePackage,
+  saveDisguisePackage,
+  clearDisguisePackages,
+  DEFAULT_CLEAN_VEHICLE_LIVERY,
+} from "./lib/disguisePackage";
 
 export type Stage =
   | "landing"
@@ -95,6 +105,7 @@ export type Stage =
   | "job-yard"
   | "front-terminal"
   | "forgery-bay"
+  | "vehicle-editor"
   | "print-apply"
   | "mission"
   | "final-run-receipt"
@@ -116,6 +127,7 @@ const STAGE_TAGS: Record<Stage, string> = {
   "job-yard": "PRINT & SIGN",
   "front-terminal": "FRONT",
   "forgery-bay": "FORGERY",
+  "vehicle-editor": "CUSTOM BAY",
   "print-apply": "PRINT",
   mission: "PORT VICE",
   "final-run-receipt": "RECEIPT",
@@ -183,6 +195,9 @@ export default function App() {
   const [receiptState, setReceiptState] = useState<ReceiptState>(() => loadReceiptState());
   // P6 Creative Playground: chosen front and final run receipt state.
   const [chosenFront, setChosenFront] = useState<ChosenFrontRecord | null>(() => loadChosenFront());
+  const [activePackage, setActivePackage] = useState<DisguisePackage | null>(() =>
+    loadActiveDisguisePackage(receiptState.cover01Burned),
+  );
   const [runReceipt, setRunReceipt] = useState<RunReceipt | null>(() => loadRunReceipt());
   const [progress, setProgress] = useState<ProgressState>(initialProgress);
   const [selectedDistrict, setSelectedDistrict] = useState<DistrictId | null>(null);
@@ -210,6 +225,20 @@ export default function App() {
     [cover, cover02, receiptState.cover01Burned],
   );
 
+  const activeVehicleLivery = useMemo(() => {
+    if (activePackage) return activePackage.vehicleLivery;
+    if (!activeCover) return DEFAULT_CLEAN_VEHICLE_LIVERY;
+    return deriveVehicleLivery(activeCover.image, chosenFront?.resolvedFrontId);
+  }, [activePackage, activeCover, chosenFront?.resolvedFrontId]);
+
+  const cover01VehicleLivery = useMemo(
+    () => (cover?.vehicleLivery ?? (cover ? deriveVehicleLivery(cover.image, chosenFront?.resolvedFrontId) : null)),
+    [cover, chosenFront?.resolvedFrontId],
+  );
+  const cover02VehicleLivery = useMemo(
+    () => (cover02?.vehicleLivery ?? (cover02 ? deriveVehicleLivery(cover02.image, chosenFront?.resolvedFrontId) : null)),
+    [cover02, chosenFront?.resolvedFrontId],
+  );
   // Blank vinyl starter panel or existing cover data URL for the forgery bay.
   const coverStarter = useMemo(() => {
     if (cover02) return cover02.image;
@@ -311,10 +340,21 @@ export default function App() {
     metrics?: CreativeMetrics,
   ) => {
     const lockedAt = new Date().toISOString();
-    const persisted = saveCoverRecord(dataUrl, analysis, lockedAt);
-    setCover({ image: dataUrl, analysis, lockedAt });
+    const pkg = activePackage ?? createDisguisePackage(dataUrl, null, chosenFront?.resolvedFrontId);
+    const updatedPkg = { ...pkg, identityArtwork: dataUrl };
+    saveDisguisePackage(updatedPkg, "COVER//01");
+    setActivePackage(updatedPkg);
+    const persisted = saveCoverRecord(dataUrl, analysis, lockedAt, updatedPkg);
+    setCover({
+      image: dataUrl,
+      analysis,
+      lockedAt,
+      templateId: updatedPkg.templateId,
+      disguisePackage: updatedPkg,
+      vehicleLivery: updatedPkg.vehicleLivery,
+    });
     setPersistWarning(!persisted);
-    console.info("[crewmark] COVER//01 locked.", {
+    console.info("[crewmark] COVER//01 locked with linked disguise package.", {
       score: analysis.score,
       blank: analysis.blank,
       readiness: metrics?.coverReadiness,
@@ -330,15 +370,25 @@ export default function App() {
     metrics?: CreativeMetrics,
   ) => {
     const lockedAt = new Date().toISOString();
-    const persisted = saveCover02Record(dataUrl, analysis, signature, lockedAt);
-    setCover02({ image: dataUrl, analysis, signature, lockedAt });
+    const pkg = activePackage ?? createDisguisePackage(dataUrl, null, chosenFront?.resolvedFrontId);
+    const updatedPkg = { ...pkg, identityArtwork: dataUrl };
+    saveDisguisePackage(updatedPkg, "COVER//02");
+    setActivePackage(updatedPkg);
+    const persisted = saveCover02Record(dataUrl, analysis, signature, lockedAt, updatedPkg);
+    setCover02({
+      image: dataUrl,
+      analysis,
+      signature,
+      lockedAt,
+      templateId: updatedPkg.templateId,
+      disguisePackage: updatedPkg,
+      vehicleLivery: updatedPkg.vehicleLivery,
+    });
     setPersistWarning(!persisted);
-    console.info("[crewmark] COVER//02 locked. Signature rotated.", {
+    console.info("[crewmark] COVER//02 locked with linked disguise package.", {
       distance: signature.signatureDistance,
       cityMatch: signature.cityMatchEstimate,
     });
-
-    // Generate and persist final run receipt
     if (chosenFront && metrics) {
       const receipt = buildRunReceipt({
         runId: `run-${Date.now().toString(36)}`,
@@ -363,11 +413,11 @@ export default function App() {
   };
   const handleStartJob = () => {
     if (!cover) return;
-    const nextMission = startMissionState(cover);
+    const nextMission = startMissionState(cover, cover.disguisePackage ?? activePackage ?? undefined);
     const persisted = saveMission(nextMission);
     setMissionState(nextMission);
     setPersistWarning(!persisted);
-    console.info("[crewmark] JOB//01 mission started with frozen cover snapshot.", {
+    console.info("[crewmark] JOB//01 mission started with frozen disguise package snapshot.", {
       score: nextMission.snapshot?.score,
     });
     setStage("mission");
@@ -440,10 +490,17 @@ export default function App() {
     clearMark();
     clearMarkV2();
     clearProgress();
+    try {
+      localStorage.removeItem("crewmark:r:template_id");
+    } catch {
+      // Ignored
+    }
     clearJob01Accepted();
     clearCoverRecord();
     clearMission();
     clearReceiptState();
+    clearDisguisePackages();
+    setActivePackage(null);
     clearChosenFront();
     clearRunReceipt();
     try {
@@ -641,6 +698,8 @@ export default function App() {
                   setStage("front-terminal");
                 }}
                 cover={activeCover ? { image: activeCover.image, score: activeCover.score } : null}
+                disguisePackage={activePackage}
+                vehicleLivery={activeVehicleLivery}
                 onEditCover={() => {
                   if (!chosenFront) {
                     setStage("front-terminal");
@@ -648,6 +707,7 @@ export default function App() {
                     setStage("forgery-bay");
                   }
                 }}
+                onEditVehicle={() => setStage("vehicle-editor")}
                 onStartJob={handleStartJob}
                 onInspect3DCover={() => setStage("cover-inspection")}
                 onViewReceipt={() => setStage("final-run-receipt")}
@@ -729,6 +789,8 @@ export default function App() {
                 <CoverInspection3D
                   cover01Image={cover?.image ?? null}
                   cover02Image={cover02?.image ?? null}
+                  vehicleLivery01={cover01VehicleLivery}
+                  vehicleLivery02={cover02VehicleLivery}
                   signature={cover02?.signature ?? null}
                   onBackToYard={() => setStage("job-yard")}
                   onTestCover={handleStartJob}
@@ -755,6 +817,13 @@ export default function App() {
                   isEditingCover02={!!cover02}
                   burnedCover01={cover ? { image: cover.image, score: cover.analysis.score } : null}
                   onCommitRotation={handleCover02Commit}
+                  onOpenVehicleEditor={() => {
+                    if (!activePackage && coverStarter) {
+                      const initialPkg = createDisguisePackage(coverStarter, null, chosenFront?.resolvedFrontId);
+                      setActivePackage(initialPkg);
+                    }
+                    setStage("vehicle-editor");
+                  }}
                 />
               </motion.div>
             )}
@@ -789,11 +858,48 @@ export default function App() {
                 <Mission
                   plateSrc={checkpointPlate}
                   snapshot={missionState.snapshot}
+                  livery={missionState.snapshot.vehicleLivery ?? deriveVehicleLivery(missionState.snapshot.coverImage, chosenFront?.resolvedFrontId)}
                   heat={progress.heat}
                   initialPhase={resumeMissionPhase(missionState) ?? "departure"}
                   onCheckpoint={handleMissionCheckpoint}
                   onComplete={handleMissionComplete}
                   onExit={handleMissionExit}
+                />
+              </motion.div>
+            )}
+            {stage === "vehicle-editor" && (
+              <motion.div
+                key="vehicle-editor"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <VehicleEditor
+                  currentPackage={
+                    activePackage ??
+                    createDisguisePackage(
+                      cover?.image ?? coverStarter ?? "",
+                      null,
+                      chosenFront?.resolvedFrontId,
+                    )
+                  }
+                  onSave={(updated) => {
+                    setActivePackage(updated);
+                    if (cover) {
+                      setCover((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              disguisePackage: updated,
+                              vehicleLivery: updated.vehicleLivery,
+                            }
+                          : null,
+                      );
+                    }
+                    setStage("job-yard");
+                  }}
+                  onBack={() => setStage("job-yard")}
                 />
               </motion.div>
             )}

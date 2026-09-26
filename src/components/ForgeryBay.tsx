@@ -4,6 +4,7 @@ import ImageEditor, {
   type ImageEditorSaveResult,
 } from "@unlayer/react-image-editor";
 import {
+  Car,
   Lock,
   TriangleAlert,
   Eye,
@@ -28,12 +29,21 @@ import {
 } from "../lib/signatureComparison";
 import MultiSurfacePreview from "./MultiSurfacePreview";
 import TemplateGallery from "./TemplateGallery";
+import type { CoverTemplateId } from "../lib/coverTemplates";
 import {
   createStarterTemplate,
   loadChosenFront,
   FRONT_OPTION_BY_ID,
   type ChosenFrontRecord,
 } from "../lib/fronts";
+
+const RECOMMENDED_TEMPLATE_BY_FRONT: Partial<Record<string, CoverTemplateId>> = {
+  "pool-service": "clearwater-pool",
+  "flower-delivery": "coral-bloom",
+  "pest-control": "bug-out-305",
+  "nightlife-supply": "nightshift-supply",
+  "mobile-detailing": "vice-mobile-detail",
+};
 export interface ForgeryBayProps {
   /**
    * Editable starting image: the saved COVER//01 when re-editing or rotating,
@@ -63,10 +73,9 @@ export interface ForgeryBayProps {
     signature: VisualSignatureComparison,
     creativeMetrics?: CreativeMetrics,
   ) => void;
-  /** Optional chosen front record from parent or loaded from storage */
   chosenFront?: ChosenFrontRecord | null;
-  /** P8: open on the template gallery first instead of the editor. Defaults to gallery for fresh COVER//01. */
   startInGallery?: boolean;
+  onOpenVehicleEditor?: () => void;
 }
 
 /**
@@ -83,7 +92,7 @@ export interface ForgeryBayProps {
  */
 export default function ForgeryBay({
   initialImage,
-  hasExistingCover: _hasExistingCover,
+  hasExistingCover,
   onCommit,
   onBack,
   isRotationMode = false,
@@ -92,10 +101,13 @@ export default function ForgeryBay({
   onCommitRotation,
   chosenFront: initialChosenFront,
   startInGallery,
+  onOpenVehicleEditor,
 }: ForgeryBayProps) {
   const isV2 = isRotationMode || isEditingCover02;
   // P8: gallery-first for fresh COVER//01; rotation/editing flows keep the editor-first layout.
-  const [galleryOpen, setGalleryOpen] = useState(() => (startInGallery ?? !isV2));
+  const [galleryOpen, setGalleryOpen] = useState(
+    () => (startInGallery ?? (!isV2 && !hasExistingCover)),
+  );
   const [referenceTemplate, setReferenceTemplate] = useState<{ id: string; dataUrl: string } | null>(null);
   const editorRef = useRef<ImageEditorRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -217,6 +229,11 @@ export default function ForgeryBay({
     setNotice(null);
     setReferenceTemplate(null);
     try {
+      localStorage.setItem("crewmark:r:template_id", label);
+    } catch {
+      // Ignored
+    }
+    try {
       const res = { dataUrl };
       void runCheckOnDataUrl(res.dataUrl);
       setNotice(`${label} loaded onto canvas. Remix it.`);
@@ -229,6 +246,11 @@ export default function ForgeryBay({
   const handleStartBlank = async () => {
     setBusy(true);
     setNotice(null);
+    try {
+      localStorage.removeItem("crewmark:r:template_id");
+    } catch {
+      // Ignored
+    }
     try {
       const res = await createStarterTemplate({
         kind: "blank",
@@ -382,7 +404,7 @@ export default function ForgeryBay({
 
   return (
     <section
-      className="cm-screen cm-forgery-garage"
+      className={`cm-screen cm-forgery-garage${!isV2 && galleryOpen ? " cm-forgery-garage--gallery" : ""}`}
       aria-label={
         isEditingCover02
           ? "Edit Cover 02"
@@ -396,13 +418,31 @@ export default function ForgeryBay({
         305 PRINT &amp; SIGN // FORGERY GARAGE // {isV2 ? "COVER//02" : "COVER//01"}
       </p>
       <h1 className="cm-title">
-        BUILD SOMETHING <span className="accent">THE CITY WON'T QUESTION.</span>
+        {!isV2 && galleryOpen ? (
+          <>
+            <span className="cm-gallery-hero-line">BUILD A COVER</span>
+            <span className="accent cm-gallery-hero-line">THE CITY WON&apos;T QUESTION.</span>
+          </>
+        ) : (
+          <>
+            BUILD SOMETHING <span className="accent">THE CITY WON&apos;T QUESTION.</span>
+          </>
+        )}
       </h1>
-      <p className="cm-lede">{dynamicSubline}</p>
+      <p className="cm-lede">
+        {!isV2 && galleryOpen
+          ? "Pick a disguise, make it yours, then see it on the vehicle."
+          : dynamicSubline}
+      </p>
 
       {/* P8: template-first gallery for fresh COVER//01 */}
       {!isV2 && galleryOpen ? (
         <TemplateGallery
+          recommendedTemplateId={
+            chosenFrontRecord
+              ? RECOMMENDED_TEMPLATE_BY_FRONT[chosenFrontRecord.resolvedFrontId]
+              : undefined
+          }
           onRemix={(templateId, dataUrl) =>
             void loadTemplateIntoEditor(dataUrl, templateId)
           }
@@ -845,6 +885,18 @@ export default function ForgeryBay({
           Preview Cover
         </button>
 
+        {onOpenVehicleEditor && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onOpenVehicleEditor}
+            title="Open 3D Vehicle Customization Bay"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+          >
+            <Car size={14} aria-hidden="true" />
+            Edit Vehicle
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-primary"

@@ -3,11 +3,14 @@ import {
   type SurfaceId,
   getSurfaceDefinition,
 } from "../lib/multiSurfacePreview";
+import type { VehicleLivery } from "../lib/vehicleLivery";
+import { deriveVehicleLivery } from "../lib/vehicleLivery";
 import { ZoomIn, ZoomOut, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 export interface SurfaceMockupProps {
   surfaceId: SurfaceId;
   coverDataUrl: string;
+  vehicleLivery?: VehicleLivery;
   detailed?: boolean;
   className?: string;
   onToggleInspect?: () => void;
@@ -17,6 +20,7 @@ export interface SurfaceMockupProps {
 export default function SurfaceMockup({
   surfaceId,
   coverDataUrl,
+  vehicleLivery,
   detailed: externalDetailed,
   className = "",
   onToggleInspect,
@@ -25,7 +29,7 @@ export default function SurfaceMockup({
   const [internalDetailed, setInternalDetailed] = useState(false);
   const def = getSurfaceDefinition(surfaceId);
   const isDetailed = externalDetailed !== undefined ? externalDetailed : internalDetailed;
-
+  const activeLivery = vehicleLivery ?? (surfaceId === "CAR" && coverDataUrl ? deriveVehicleLivery(coverDataUrl) : null);
   const handleToggle = () => {
     if (onToggleInspect) {
       onToggleInspect();
@@ -85,8 +89,9 @@ export default function SurfaceMockup({
                 position: "relative",
                 width: "92%",
                 height: "82%",
-                background: "linear-gradient(165deg, #2c3038 0%, #1a1c22 45%, #121418 100%)",
-                borderRadius: "14px 28px 10px 10px",
+                background: activeLivery
+                  ? `linear-gradient(165deg, ${activeLivery.bodyBaseColor} 0%, ${activeLivery.secondaryColor} 100%)`
+                  : "linear-gradient(165deg, #2c3038 0%, #1a1c22 45%, #121418 100%)",
                 border: "2px solid #3c424e",
                 boxShadow: "inset 0 2px 8px rgba(255,255,255,0.1), 0 12px 32px rgba(0,0,0,0.8)",
                 overflow: "hidden",
@@ -148,29 +153,40 @@ export default function SurfaceMockup({
                 }}
               />
 
-              {/* The Applied Decal / Cover */}
+              {/* The Applied Decal / Emblem */}
               <div
                 style={{
                   position: "relative",
-                  width: "78%",
-                  height: "46%",
-                  marginTop: "8%",
-                  borderRadius: "3px",
-                  overflow: "hidden",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  width: "84%",
+                  height: "52%",
+                  marginTop: "6%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <img
-                  src={coverDataUrl}
-                  alt="Vehicle Door Cover"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
-                />
+                {activeLivery?.doorGraphicDataUrl ? (
+                  <img
+                    src={activeLivery.doorGraphicDataUrl}
+                    alt="Vehicle door badge"
+                    style={{
+                      maxHeight: "95%",
+                      maxWidth: "95%",
+                      objectFit: "contain",
+                      filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.6))",
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={coverDataUrl}
+                    alt="Vehicle decal"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                    }}
+                  />
+                )}
                 {/* Surface lighting overlay */}
                 <div
                   style={{

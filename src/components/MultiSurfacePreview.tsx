@@ -4,6 +4,7 @@ import {
   SURFACE_IDS,
   getSurfaceDefinition,
 } from "../lib/multiSurfacePreview";
+import type { VehicleLivery } from "../lib/vehicleLivery";
 import SurfaceMockup from "./SurfaceMockup";
 import {
   Car,
@@ -32,6 +33,7 @@ export interface MultiSurfacePreviewProps {
   initialSurface?: SurfaceId;
   canLock?: boolean;
   isCover02?: boolean;
+  vehicleLivery?: VehicleLivery;
 }
 
 const SURFACE_ICONS: Record<SurfaceId, typeof Car> = {
@@ -53,6 +55,7 @@ export default function MultiSurfacePreview({
   initialSurface = "CAR",
   canLock = true,
   isCover02 = false,
+  vehicleLivery,
 }: MultiSurfacePreviewProps) {
   const [activeSurface, setActiveSurface] = useState<SurfaceId>(initialSurface);
   const [detailed, setDetailed] = useState(false);
@@ -261,9 +264,9 @@ export default function MultiSurfacePreview({
                 <SurfaceMockup
                   surfaceId={activeSurface}
                   coverDataUrl={coverDataUrl}
+                  vehicleLivery={vehicleLivery}
                   detailed={detailed}
                   onToggleInspect={() => setDetailed(!detailed)}
-                  showInspectorButton={true}
                 />
               </div>
 
@@ -476,6 +479,7 @@ export default function MultiSurfacePreview({
                   <SurfaceMockup
                     surfaceId={id}
                     coverDataUrl={coverDataUrl}
+                    vehicleLivery={vehicleLivery}
                     detailed={false}
                     showInspectorButton={false}
                   />

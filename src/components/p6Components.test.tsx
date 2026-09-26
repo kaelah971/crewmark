@@ -142,7 +142,7 @@ describe("P6 UI Components SSR / Rendering", () => {
       // Header and title
       expect(html).toContain("305 PRINT &amp; SIGN // FORGERY GARAGE //");
       expect(html).toContain("COVER//01");
-      expect(html).toContain("BUILD SOMETHING");
+      expect(html).toContain("BUILD A COVER");
       expect(html).toContain("THE CITY WON&#x27;T QUESTION.");
 
       // P8: gallery-first — template cards carry the remix path

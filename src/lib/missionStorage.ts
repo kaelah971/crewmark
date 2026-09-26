@@ -1,8 +1,7 @@
 import type { CoverAnalysis } from "./coverAnalysis";
 import type { CheckpointBranch, MissionState } from "../world/mission";
-
-// Deterministic JOB//01 mission persistence (P3.5A-R.3).
-//
+import type { DisguisePackage } from "./disguisePackage";
+import type { VehicleLivery } from "./vehicleLivery";
 // One dedicated localStorage key — never merged into mark, progress, job,
 // or cover slots — so old saves load with no mission and RESET simply
 // removes the key. The stored snapshot freezes the cover analysis from
@@ -58,6 +57,8 @@ function sanitize(raw: unknown): MissionState | null {
       analysis: snapshot.analysis,
       score: snapshot.score,
       startedAt: typeof snapshot.startedAt === "string" ? snapshot.startedAt : undefined,
+      disguisePackage: (snapshot.disguisePackage as DisguisePackage) ?? undefined,
+      vehicleLivery: (snapshot.vehicleLivery as VehicleLivery) ?? undefined,
     },
     checkpoint: checkpointBranch,
     checkpointHeatPaid: v.checkpointHeatPaid === true,

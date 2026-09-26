@@ -3,11 +3,14 @@ import {
   initCoverInspection3D,
   type CoverInspection3DSceneResult,
 } from "../lib/coverInspection3dScene";
+import type { VehicleLivery } from "../lib/vehicleLivery";
 import type { VisualSignatureComparison } from "../lib/signatureComparison";
 import { ArrowLeft, Play, Loader2 } from "lucide-react";
 export interface CoverInspection3DProps {
   cover01Image: string | null;
   cover02Image: string | null;
+  vehicleLivery01: VehicleLivery | null;
+  vehicleLivery02: VehicleLivery | null;
   signature?: VisualSignatureComparison | null;
   onBackToYard: () => void;
   onTestCover?: () => void;
@@ -18,6 +21,8 @@ export interface CoverInspection3DProps {
 export default function CoverInspection3D({
   cover01Image,
   cover02Image,
+  vehicleLivery01,
+  vehicleLivery02,
   signature,
   onBackToYard,
   onTestCover,
@@ -35,18 +40,24 @@ export default function CoverInspection3D({
   const [loading, setLoading] = useState(true);
 
   const activeImage = selectedSlot === "cover02" && cover02Image ? cover02Image : cover01Image;
+  const activeLivery = selectedSlot === "cover02" && vehicleLivery02 ? vehicleLivery02 : vehicleLivery01;
+  const initialImageRef = useRef(activeImage);
+  const initialLiveryRef = useRef(activeLivery);
+  const onBackRef = useRef(onBackToYard);
+  useEffect(() => {
+    onBackRef.current = onBackToYard;
+  }, [onBackToYard]);
 
   useEffect(() => {
     if (!containerRef.current) return;
-
-    const result = initCoverInspection3D(containerRef.current, activeImage, () => {
+    const result = initCoverInspection3D(containerRef.current, initialImageRef.current, () => {
       setLoading(false);
-    });
+    }, initialLiveryRef.current);
     sceneRef.current = result;
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onBackToYard();
+        onBackRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -64,6 +75,8 @@ export default function CoverInspection3D({
     const targetUrl = slot === "cover02" && cover02Image ? cover02Image : cover01Image;
     if (targetUrl && sceneRef.current) {
       sceneRef.current.setCoverTexture(targetUrl);
+      const targetLivery = slot === "cover02" && vehicleLivery02 ? vehicleLivery02 : vehicleLivery01;
+      if (targetLivery) sceneRef.current.setVehicleLivery(targetLivery);
     }
   };
 
@@ -144,7 +157,7 @@ export default function CoverInspection3D({
             )}
           </h1>
           <p style={{ margin: "4px 0 0 0", fontSize: "11px", fontFamily: "monospace", color: "#9AA3AD" }}>
-            DRAG MOUSE TO ORBIT &bull; SCROLL TO ZOOM &bull; EXACT 16:7 DECAL
+            DRAG MOUSE TO ORBIT &bull; SCROLL TO ZOOM &bull; FULL PANEL LIVERY
           </p>
         </div>
 

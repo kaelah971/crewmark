@@ -4,6 +4,9 @@ import InteractionZone from "./world/InteractionZone";
 import WorldHud from "./world/WorldHud";
 import CctvReview from "./CctvReview";
 import type { CameraReceipt } from "../world/receipts";
+import type { VehicleLivery } from "../lib/vehicleLivery";
+import type { DisguisePackage } from "../lib/disguisePackage";
+import { DEFAULT_CLEAN_VEHICLE_LIVERY } from "../lib/disguisePackage";
 import {
   JOB_YARD_BOUNDS,
   JOB_YARD_HOTSPOTS,
@@ -22,16 +25,19 @@ import yardPlate from "../assets/world/yard-wide.png";
 import playerSprite from "../assets/world/player-idle.png";
 import SurfaceMockup from "./SurfaceMockup";
 import { type SurfaceId } from "../lib/multiSurfacePreview";
+import { deriveVehicleLivery } from "../lib/vehicleLivery";
+import { VehicleLiveryProjection } from "./VehicleLiveryProjection";
 
 interface JobYardProps {
   hud: { rep: number; heat: number; territory: number };
   jobAccepted: boolean;
   onAcceptJob: () => void;
-  /** Locked COVER//01 projected onto the sedan, or null before any lock. */
+  /** Active COVER//01 or COVER//02 vehicle livery projection. */
   cover: { image: string; score: number } | null;
-  /** Enter the forgery bay seeded from the saved cover. */
+  disguisePackage?: DisguisePackage | null;
+  vehicleLivery?: VehicleLivery | null;
   onEditCover: () => void;
-  /** Start the Port Vice night delivery mission. */
+  onEditVehicle?: () => void;
   onStartJob?: () => void;
   /** P7C: Open 3D vehicle inspection mode */
   onInspect3DCover?: () => void;
@@ -73,8 +79,8 @@ interface FocusMessage {
  * shop, vehicle, or exit gate. Accepting JOB//01 flips the objective and
  * unlocks the print-shop handoff; the exit gate stays blocked and no
  * district/tagging flow can start from here. Once COVER//01 is locked, the
- * exact saved graphic is projected onto the sedan, the print shop becomes
- * the re-edit entry, and the gate offers a locked mission-ready handoff.
+ * exact saved source is derived into the active full-panel livery, the print
+ * shop becomes the re-edit entry, and the gate offers a locked mission-ready handoff.
  */
 export default function JobYard({
   hud,
@@ -93,6 +99,9 @@ export default function JobYard({
   onCompleteReceiptReview,
   coverVersion = "COVER//01",
   cityMatch: _cityMatch,
+  disguisePackage,
+  vehicleLivery,
+  onEditVehicle,
 }: JobYardProps) {
   const [_player, setPlayer] = useState<PlayerState>({
     pos: { ...JOB_YARD_SPAWN },
@@ -116,6 +125,10 @@ export default function JobYard({
       return false;
     }
   });
+  const resolvedVehicleLivery =
+    disguisePackage?.vehicleLivery ??
+    vehicleLivery ??
+    (cover ? deriveVehicleLivery(cover.image) : DEFAULT_CLEAN_VEHICLE_LIVERY);
   const [inspectSurface, setInspectSurface] = useState<SurfaceId | null>(null);
   const [vehicleModalOpen, setVehicleModalOpen] = useState(false);
 
@@ -195,11 +208,7 @@ export default function JobYard({
       return;
     }
     if (id === "vehicle") {
-      if (cover) {
-        setVehicleModalOpen(true);
-        return;
-      }
-      showFocus({ title: "Vehicle", line: "NO COVER APPLIED — prep the disguise at the print shop first" });
+      setVehicleModalOpen(true);
       return;
     }
     if (id === "exit-gate") {
@@ -478,23 +487,23 @@ export default function JobYard({
             />
           );
         })}
+        {/* Parked crew sedan: clean factory black when undisguised, transformed into fleet vehicle when disguised */}
+        <div
+          className="cm-vehicle-cover cm-vehicle-hitbox"
+          role="button"
+          tabIndex={0}
+          title={cover ? "Parked crew sedan — Click to inspect disguise or edit vehicle" : "Parked crew sedan — Clean / Undisguised State"}
+          onClick={() => interact("vehicle")}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") interact("vehicle");
+          }}
+          style={{ cursor: "pointer", pointerEvents: "auto" }}
+        >
+          <VehicleLiveryProjection livery={resolvedVehicleLivery} angle="yard" className="cm-vehicle-livery--yard" />
+        </div>
+
         {cover ? (
           <>
-            {/* 1. Vehicle door cover payoff */}
-            <div
-              className="cm-vehicle-cover"
-              role="button"
-              tabIndex={0}
-              title="Parked crew sedan — Click to inspect cover or test on mission"
-              onClick={() => interact("vehicle")}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") interact("vehicle");
-              }}
-              style={{ cursor: "pointer", pointerEvents: "auto" }}
-            >
-              <img src={cover.image} alt="Vehicle door livery" draggable={false} />
-            </div>
-
             {/* 2. In-world shipping crate/package payoff */}
             <div
               className="cm-crate-cover"
@@ -635,43 +644,76 @@ export default function JobYard({
         </div>
       ) : null}
 
-      {vehicleModalOpen && cover ? (
-        <div className="cm-workorder" role="dialog" aria-modal="true" aria-label="Vehicle contractor disguise options">
+      {vehicleModalOpen ? (
+        <div className="cm-workorder" role="dialog" aria-modal="true" aria-label="Vehicle disguise status">
           <p className="cm-kicker">305 Yard // Crew Sedan</p>
           <h2 className="cm-workorder-title">
-            {coverVersion === "COVER//02" ? "Cover//02 Active" : "Cover//01 Active"} <span>Disguise Mounted</span>
+            {cover ? (
+              <>{coverVersion === "COVER//02" ? "Cover//02 Active" : "Cover//01 Active"} <span>Disguise Mounted</span></>
+            ) : (
+              <>CLEAN STATE <span>// UNDISGUISED</span></>
+            )}
           </h2>
           <p className="cm-workorder-objective">
-            {coverVersion === "COVER//02"
-              ? "Rotated signature livery is active on vehicle door."
-              : "Contractor cover livery is mounted and ready for inspection."}
+            {cover
+              ? (coverVersion === "COVER//02"
+                  ? "Rotated signature livery is active on vehicle."
+                  : "Contractor cover livery is mounted and ready for inspection.")
+              : "Sedan is currently in its factory black state. Choose and mount a fake-company disguise at the Forgery Garage before attempting the Port Vice gate run."}
           </p>
-          <div className="cm-cover-frame" style={{ maxWidth: "340px", margin: "14px 0" }}>
-            <img src={cover.image} alt="Active disguise decal" draggable={false} />
+          <div className="cm-cover-frame cm-cover-frame--livery" style={{ maxWidth: "520px", margin: "14px 0" }}>
+            <VehicleLiveryProjection livery={resolvedVehicleLivery} angle="yard" className="cm-vehicle-livery--yard cm-vehicle-livery--modal" />
           </div>
           <div className="cm-cta-row">
-            {onInspect3DCover && (
+            {cover ? (
+              <>
+                {onInspect3DCover && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setVehicleModalOpen(false);
+                      onInspect3DCover();
+                    }}
+                  >
+                    INSPECT COVER (3D)
+                  </button>
+                )}
+                {onEditVehicle && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setVehicleModalOpen(false);
+                      onEditVehicle();
+                    }}
+                  >
+                    EDIT VEHICLE
+                  </button>
+                )}
+                {onStartJob && !completed && !coverBurned && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setVehicleModalOpen(false);
+                      onStartJob();
+                    }}
+                  >
+                    TEST THE COVER
+                  </button>
+                )}
+              </>
+            ) : (
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => {
                   setVehicleModalOpen(false);
-                  onInspect3DCover();
+                  onEditCover();
                 }}
               >
-                INSPECT COVER (3D)
-              </button>
-            )}
-            {onStartJob && !completed && !coverBurned && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => {
-                  setVehicleModalOpen(false);
-                  onStartJob();
-                }}
-              >
-                TEST THE COVER
+                OPEN PRINT BAY / GARAGE
               </button>
             )}
             <button

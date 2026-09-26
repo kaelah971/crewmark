@@ -1,6 +1,14 @@
 import type { CoverAnalysis } from "./coverAnalysis";
 import type { VisualSignatureComparison } from "./signatureComparison";
-
+import type { CoverTemplateId } from "./coverTemplates";
+import type { DisguisePackage } from "./disguisePackage";
+import type { VehicleLivery } from "./vehicleLivery";
+import {
+  clearDisguisePackages,
+  createDisguisePackage,
+  loadDisguisePackage,
+  saveDisguisePackage,
+} from "./disguisePackage";
 /**
  * P3.5A-R.2 & P3.5A-R.5: Persistent COVER//01 and COVER//02 states.
  *
@@ -28,6 +36,9 @@ export interface CoverRecord {
   readonly image: string;
   readonly analysis: CoverAnalysis;
   readonly lockedAt: string;
+  readonly templateId?: CoverTemplateId | null;
+  readonly disguisePackage?: DisguisePackage;
+  readonly vehicleLivery?: VehicleLivery;
 }
 
 export interface Cover02Record {
@@ -35,6 +46,9 @@ export interface Cover02Record {
   readonly analysis: CoverAnalysis;
   readonly signature: VisualSignatureComparison;
   readonly lockedAt: string;
+  readonly templateId?: CoverTemplateId | null;
+  readonly disguisePackage?: DisguisePackage;
+  readonly vehicleLivery?: VehicleLivery;
 }
 
 export type CoverVersion = "COVER//01" | "COVER//02";
@@ -83,19 +97,38 @@ export function loadCoverRecord(): CoverRecord | null {
     const analysis: unknown = JSON.parse(rawAnalysis);
     if (!isPlausibleAnalysis(analysis)) return null;
     const lockedAt = window.localStorage.getItem(`${IMAGE_KEY}:lockedAt`);
-    return { image, analysis, lockedAt: typeof lockedAt === "string" ? lockedAt : "" };
+    const pkg = loadDisguisePackage("COVER//01");
+    return {
+      image,
+      analysis,
+      lockedAt: typeof lockedAt === "string" ? lockedAt : "",
+      templateId: pkg?.templateId ?? null,
+      disguisePackage: pkg ?? undefined,
+      vehicleLivery: pkg?.vehicleLivery,
+    };
   } catch (err) {
     console.warn("[crewmark] Cover01 load failed; treating as no cover.", err);
     return null;
   }
 }
 
-/** Persist locked COVER//01 + its analysis. */
-export function saveCoverRecord(image: string, analysis: CoverAnalysis, lockedAt: string): boolean {
+/** Persist locked COVER//01 + its analysis and disguise package. */
+export function saveCoverRecord(
+  image: string,
+  analysis: CoverAnalysis,
+  lockedAt: string,
+  pkg?: DisguisePackage,
+): boolean {
   try {
     window.localStorage.setItem(IMAGE_KEY, image);
     window.localStorage.setItem(ANALYSIS_KEY, JSON.stringify(analysis));
     window.localStorage.setItem(`${IMAGE_KEY}:lockedAt`, lockedAt);
+    if (pkg) {
+      saveDisguisePackage(pkg, "COVER//01");
+    } else {
+      const created = createDisguisePackage(image);
+      saveDisguisePackage(created, "COVER//01");
+    }
     return true;
   } catch (err) {
     console.warn("[crewmark] Cover01 save failed; cover is session-only.", err);
@@ -114,11 +147,15 @@ export function loadCover02Record(): Cover02Record | null {
     const signature: unknown = JSON.parse(rawSignature);
     if (!isPlausibleAnalysis(analysis) || !isPlausibleSignature(signature)) return null;
     const lockedAt = window.localStorage.getItem(`${IMAGE_KEY_V2}:lockedAt`);
+    const pkg = loadDisguisePackage("COVER//02");
     return {
       image,
       analysis,
       signature,
       lockedAt: typeof lockedAt === "string" ? lockedAt : "",
+      templateId: pkg?.templateId ?? null,
+      disguisePackage: pkg ?? undefined,
+      vehicleLivery: pkg?.vehicleLivery,
     };
   } catch (err) {
     console.warn("[crewmark] Cover02 load failed; treating as no cover02.", err);
@@ -126,18 +163,25 @@ export function loadCover02Record(): Cover02Record | null {
   }
 }
 
-/** Persist locked COVER//02 + analysis + signature comparison atomically. */
+/** Persist locked COVER//02 + analysis + signature comparison + disguise package. */
 export function saveCover02Record(
   image: string,
   analysis: CoverAnalysis,
   signature: VisualSignatureComparison,
   lockedAt: string,
+  pkg?: DisguisePackage,
 ): boolean {
   try {
     window.localStorage.setItem(IMAGE_KEY_V2, image);
     window.localStorage.setItem(ANALYSIS_KEY_V2, JSON.stringify(analysis));
     window.localStorage.setItem(SIGNATURE_KEY_V2, JSON.stringify(signature));
     window.localStorage.setItem(`${IMAGE_KEY_V2}:lockedAt`, lockedAt);
+    if (pkg) {
+      saveDisguisePackage(pkg, "COVER//02");
+    } else {
+      const created = createDisguisePackage(image);
+      saveDisguisePackage(created, "COVER//02");
+    }
     return true;
   } catch (err) {
     console.warn("[crewmark] Cover02 save failed; cover02 is session-only.", err);
@@ -164,6 +208,7 @@ export function clearCoverRecord(): void {
     window.localStorage.removeItem(ANALYSIS_KEY);
     window.localStorage.removeItem(`${IMAGE_KEY}:lockedAt`);
     clearCover02Record();
+    clearDisguisePackages();
   } catch (err) {
     console.warn("[crewmark] Cover clear failed.", err);
   }

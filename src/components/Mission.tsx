@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import WorldScene from "./world/WorldScene";
 import WorldHud from "./world/WorldHud";
+import { VehicleLiveryProjection } from "./VehicleLiveryProjection";
 import checkpointPlate from "../assets/world/port-vice-checkpoint.png";
-import serviceVehicleCutout from "../assets/world/service-vehicle.png";
 import {
   CHECKPOINT_HEAT,
   MISSION_REP_REWARD,
@@ -22,6 +22,7 @@ import {
   stepVehicle,
   type VehicleState,
 } from "../world/vehicle";
+import type { VehicleLivery } from "../lib/vehicleLivery";
 import { emitGameSound } from "../lib/audio";
 
 /**
@@ -31,12 +32,10 @@ import { emitGameSound } from "../lib/audio";
  * snapshot, deterministic branches, recovery, delivery, and result. It
  * takes the plate as a prop so no fake environment is baked in.
  *
- * ASSET GAPS (both block mounting):
- * 1. port-vice-checkpoint.png — the checkpoint raster itself.
- * 2. Transparent player-sedan cutout (side view, night grade). Until it
- *    lands, the unit drives as an explicit position chevron (utility
- *    graphic, never a fake car), and the exact cover still renders on the
- *    side-panel anchor below.
+ * Mounted assets:
+ * 1. port-vice-checkpoint.png — the checkpoint raster.
+ * 2. service-vehicle.png — the transparent player sedan receiving the
+ *    shared derived livery across its panels.
  */
 
 export type MissionPhase =
@@ -51,8 +50,10 @@ export type MissionPhase =
 interface MissionProps {
   /** Realistic checkpoint plate (defaults to port-vice-checkpoint.png). */
   plateSrc?: string;
-  /** Exact saved COVER//01 image (defaults to snapshot.coverImage). */
+  /** Legacy source-cover prop retained for callers; snapshot remains canonical. */
   coverImage?: string;
+  /** Shared full-panel vehicle livery derived from the frozen source cover. */
+  livery: VehicleLivery;
   /** Frozen snapshot from START JOB. Re-edits cannot touch this. */
   snapshot: MissionSnapshot;
   heat: number;
@@ -93,9 +94,10 @@ function branchLabel(branch: CheckpointBranch): string {
 export default function Mission({
   plateSrc = checkpointPlate,
   coverImage: _coverImage,
+  livery,
   snapshot,
   heat,
-  anchor = DEFAULT_COVER_ANCHOR,
+  anchor: _anchor = DEFAULT_COVER_ANCHOR,
   initialPhase,
   onCheckpoint,
   onComplete,
@@ -142,6 +144,20 @@ export default function Mission({
     const t = window.setTimeout(() => setPhase("approach"), 2400);
     return () => window.clearTimeout(t);
   }, [phase]);
+
+  // ESC and the visible abort control always return before completion without
+  // mutating the frozen snapshot or awarding any completion-side effects.
+  useEffect(() => {
+    if (phase === "result") return;
+    const onAbortKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      keysRef.current.clear();
+      onExit();
+    };
+    window.addEventListener("keydown", onAbortKeyDown);
+    return () => window.removeEventListener("keydown", onAbortKeyDown);
+  }, [phase, onExit]);
 
   // Drive loop (approach + yard + gate for manual-branch recovery).
   // Scan/delivery/result park the vehicle.
@@ -350,6 +366,13 @@ export default function Mission({
   return (
     <section className="cm-screen" aria-label="Port Vice night delivery">
       <p className="cm-kicker">Job//01 // Port Vice // night delivery</p>
+      {phase !== "result" && (
+        <div className="cm-mission-abort">
+          <button type="button" className="btn btn-ghost" onClick={onExit}>
+            BACK TO 305 / ABORT RUN <span aria-hidden="true">[ESC]</span>
+          </button>
+        </div>
+      )}
       <WorldScene
         plateSrc={plateSrc}
         plateAlt="Port Vice cargo service entrance at night"
@@ -365,28 +388,18 @@ export default function Mission({
           />
         }
       >
-        {/* Playable realistic service vehicle with exact COVER//01 disguise projected onto door panel */}
+        {/* Real 3D liveried vehicle snapshot rendered from the frozen COVER//01 mission source */}
         <div
           className="cm-service-vehicle"
           style={{
             left: `${vehicleX}%`,
             top: `${vehicleY}%`,
             width: `${vehicleWidth}px`,
+            height: `${Math.round(vehicleWidth * 8 / 15)}px`,
           }}
           aria-hidden={true}
         >
-          <img
-            src={serviceVehicleCutout}
-            alt="Service vehicle"
-            className="cm-service-vehicle-img"
-            draggable={false}
-          />
-          <div
-            className="cm-service-vehicle-cover"
-            style={{ left: anchor.left, top: anchor.top, width: anchor.width }}
-          >
-            <img src={snapshot.coverImage} alt="" draggable={false} />
-          </div>
+          <VehicleLiveryProjection livery={livery} angle="mission" className="cm-vehicle-livery--mission" />
         </div>
         {/* Booth stop-line marker tuned for Port Vice service lane */}
         <div className="cm-stopline" aria-hidden={true} />

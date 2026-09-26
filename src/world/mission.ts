@@ -1,6 +1,9 @@
 import type { CoverAnalysis, CoverCheckStatus } from "../lib/coverAnalysis";
 import type { CoverRecord } from "../lib/coverStorage";
 import type { CreativeMetrics } from "../lib/creativeMetrics";
+import type { DisguisePackage } from "../lib/disguisePackage";
+import type { VehicleLivery } from "../lib/vehicleLivery";
+import { createDisguisePackage } from "../lib/disguisePackage";
 
 /**
  * JOB//01 mission logic (P3.5A-R.3 + P6) — pure and deterministic.
@@ -119,7 +122,7 @@ export function classifyCreativeCheckpoint(metrics: CreativeMetrics): Checkpoint
   };
 }
 
-/** Frozen cover reference captured at START JOB. Later edits can't touch it. */
+/** Frozen cover & disguise package reference captured at START JOB. Later edits can't touch it. */
 export interface MissionSnapshot {
   readonly coverImage: string;
   readonly coverLockedAt: string;
@@ -127,6 +130,8 @@ export interface MissionSnapshot {
   readonly metrics?: CreativeMetrics;
   readonly score: number;
   readonly startedAt?: string;
+  readonly disguisePackage?: DisguisePackage;
+  readonly vehicleLivery?: VehicleLivery;
 }
 
 export interface MissionState {
@@ -148,7 +153,12 @@ export const EMPTY_MISSION: MissionState = {
 };
 
 /** Snapshot the locked cover at START JOB. The record itself is never stored here. */
-export function startMissionState(cover: CoverRecord): MissionState {
+export function startMissionState(cover: CoverRecord, pkg?: DisguisePackage): MissionState {
+  const disguise =
+    pkg ??
+    cover.disguisePackage ??
+    (cover.image ? createDisguisePackage(cover.image, cover.templateId) : null);
+
   return {
     started: true,
     snapshot: {
@@ -160,6 +170,8 @@ export function startMissionState(cover: CoverRecord): MissionState {
       },
       score: cover.analysis.score,
       startedAt: new Date().toISOString(),
+      disguisePackage: disguise ?? undefined,
+      vehicleLivery: disguise?.vehicleLivery,
     },
     checkpoint: null,
     checkpointHeatPaid: false,
