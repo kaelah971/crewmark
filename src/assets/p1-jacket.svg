@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Crew jacket hanging in a print shop">
+  <defs>
+    <radialGradient id="spot" cx="0.5" cy="0.32" r="0.65">
+      <stop offset="0" stop-color="#262622"/>
+      <stop offset="1" stop-color="#10100F"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.6"/>
+    </radialGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0"/></filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#spot)"/>
+
+  <!-- shop wall hints -->
+  <g opacity="0.5">
+    <rect x="90" y="140" width="150" height="200" fill="none" stroke="#2C2C28" stroke-width="2"/>
+    <rect x="960" y="120" width="150" height="200" fill="none" stroke="#2C2C28" stroke-width="2"/>
+    <rect x="104" y="154" width="122" height="10" fill="#2C2C28"/>
+    <rect x="104" y="172" width="80" height="8" fill="#2C2C28"/>
+    <rect x="974" y="134" width="122" height="10" fill="#2C2C28"/>
+  </g>
+  <line x1="0" y1="560" x2="1200" y2="560" stroke="#232320" stroke-width="3"/>
+
+  <!-- hanger -->
+  <path d="M600,62 C600,90 596,108 584,120 M600,62 C600,90 604,108 616,120" fill="none" stroke="#70706B" stroke-width="7"/>
+  <path d="M584,120 L600,148 L616,120" fill="none" stroke="#70706B" stroke-width="7"/>
+  <line x1="470" y1="152" x2="730" y2="152" stroke="#55554E" stroke-width="8"/>
+
+  <!-- sleeves -->
+  <path d="M442,210 C400,260 372,360 360,470 L360,560 L440,560 L452,440 L478,300 Z" fill="#1A1A18" stroke="#33332E" stroke-width="2"/>
+  <path d="M758,210 C800,260 828,360 840,470 L840,560 L760,560 L748,440 L722,300 Z" fill="#1A1A18" stroke="#33332E" stroke-width="2"/>
+  <rect x="356" y="532" width="88" height="30" fill="#141412" stroke="#33332E" stroke-width="2"/>
+  <rect x="756" y="532" width="88" height="30" fill="#141412" stroke="#33332E" stroke-width="2"/>
+
+  <!-- body -->
+  <path d="M442,200 L520,176 L680,176 L758,200 L770,300 L762,580 L438,580 L430,300 Z"
+        fill="#1E1E1C" stroke="#3A3A35" stroke-width="2"/>
+  <!-- collar -->
+  <path d="M520,176 L560,230 L600,196 L640,230 L680,176 Z" fill="#141412" stroke="#3A3A35" stroke-width="2"/>
+  <!-- center back seam + stitching -->
+  <line x1="600" y1="240" x2="600" y2="580" stroke="#33332E" stroke-width="2" stroke-dasharray="8 6"/>
+  <line x1="452" y1="210" x2="444" y2="570" stroke="#33332E" stroke-width="2" stroke-dasharray="8 6"/>
+  <line x1="748" y1="210" x2="756" y2="570" stroke="#33332E" stroke-width="2" stroke-dasharray="8 6"/>
+  <!-- hem ribbing -->
+  <g stroke="#2C2C28" stroke-width="2">
+    <line x1="438" y1="548" x2="762" y2="548"/><line x1="438" y1="562" x2="762" y2="562"/>
+  </g>
+
+  <!-- stitched patch border: diegetic garment edge marking the placement area -->
+  <rect x="510" y="250" width="180" height="180" fill="none" stroke="#55554E" stroke-width="2" stroke-dasharray="10 7"/>
+
+  <!-- floor shadow -->
+  <ellipse cx="600" cy="610" rx="260" ry="16" fill="#000" opacity="0.5"/>
+
+  <rect width="1200" height="675" filter="url(#grain)"/>
+  <rect width="1200" height="675" fill="url(#vig)"/>
+</svg>

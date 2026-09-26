@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Concrete claim wall with shutters, utility box and signage">
+  <defs>
+    <linearGradient id="wallShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#20201D"/>
+      <stop offset="1" stop-color="#171715"/>
+    </linearGradient>
+    <linearGradient id="lampGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2EBDD" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#F2EBDD" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.62"/>
+    </radialGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0"/></filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="#0E0E0D"/>
+
+  <!-- main concrete wall -->
+  <rect x="180" y="60" width="840" height="500" fill="url(#wallShade)" stroke="#33332E" stroke-width="2"/>
+  <!-- panel seams -->
+  <g stroke="#10100F" stroke-width="3" opacity="0.8">
+    <line x1="180" y1="200" x2="1020" y2="200"/><line x1="180" y1="340" x2="1020" y2="340"/>
+    <line x1="180" y1="470" x2="1020" y2="470"/>
+    <line x1="390" y1="60" x2="390" y2="560"/><line x1="810" y1="60" x2="810" y2="560"/>
+  </g>
+  <!-- ghost sign -->
+  <text x="430" y="150" fill="#0E0E0D" opacity="0.9" font-family="Consolas, monospace" font-size="64" font-weight="bold" letter-spacing="10">305</text>
+  <text x="432" y="150" fill="#70706B" opacity="0.35" font-family="Consolas, monospace" font-size="64" font-weight="bold" letter-spacing="10">305</text>
+  <!-- grime streaks -->
+  <g fill="#0E0E0D" opacity="0.55">
+    <rect x="500" y="200" width="9" height="120"/><rect x="640" y="200" width="6" height="80"/>
+    <rect x="880" y="200" width="8" height="150"/><rect x="300" y="340" width="7" height="120"/>
+  </g>
+
+  <!-- roll shutter, left -->
+  <rect x="215" y="330" width="150" height="230" fill="#242421" stroke="#3A3A35" stroke-width="2"/>
+  <g stroke="#141412" stroke-width="2">
+    <line x1="215" y1="354" x2="365" y2="354"/><line x1="215" y1="378" x2="365" y2="378"/>
+    <line x1="215" y1="402" x2="365" y2="402"/><line x1="215" y1="426" x2="365" y2="426"/>
+    <line x1="215" y1="450" x2="365" y2="450"/><line x1="215" y1="474" x2="365" y2="474"/>
+    <line x1="215" y1="498" x2="365" y2="498"/><line x1="215" y1="522" x2="365" y2="522"/>
+  </g>
+
+  <!-- utility box, right -->
+  <rect x="880" y="360" width="110" height="200" fill="#1E1E1C" stroke="#3A3A35" stroke-width="2"/>
+  <rect x="892" y="378" width="34" height="46" fill="#10100F" stroke="#55554E" stroke-width="1"/>
+  <rect x="930" y="378" width="34" height="46" fill="#10100F" stroke="#55554E" stroke-width="1"/>
+  <line x1="935" y1="424" x2="935" y2="560" stroke="#0A0A09" stroke-width="8"/>
+  <circle cx="909" cy="401" r="4" fill="#FF4338" opacity="0.9"/>
+
+  <!-- overhead wires -->
+  <path d="M0,60 C300,90 700,40 1200,80" fill="none" stroke="#080807" stroke-width="4"/>
+  <path d="M0,100 C320,128 720,80 1200,118" fill="none" stroke="#080807" stroke-width="3"/>
+
+  <!-- lamp -->
+  <rect x="1050" y="140" width="10" height="180" fill="#0A0A09"/>
+  <rect x="1030" y="120" width="60" height="20" fill="#0A0A09"/>
+  <rect x="1038" y="140" width="44" height="8" fill="#F2EBDD" opacity="0.85"/>
+  <polygon points="1030,148 1090,148 1150,560 970,560" fill="url(#lampGlow)"/>
+
+  <!-- palms at edges -->
+  <g fill="#080807">
+    <path d="M60,560 C66,460 60,380 76,320 L90,322 C76,382 82,462 76,560 Z"/>
+    <path d="M83,320 C58,302 40,300 24,308 C40,314 48,320 52,326 C40,322 28,324 18,330 C34,334 50,334 60,332 C56,342 56,350 58,358 C64,346 68,336 74,330 C78,340 84,348 92,352 C90,342 88,332 90,324 C102,330 114,330 126,326 C116,320 104,318 94,320 Z"/>
+    <path d="M1120,560 C1114,460 1120,380 1108,320 L1094,322 C1108,382 1102,462 1108,560 Z"/>
+    <path d="M1101,320 C1124,302 1142,300 1158,308 C1142,314 1134,320 1130,326 C1142,322 1154,324 1164,330 C1148,334 1132,334 1122,332 C1126,342 1126,350 1124,358 C1118,346 1114,336 1108,330 C1104,340 1098,348 1090,352 C1092,342 1094,332 1092,324 C1080,330 1068,330 1056,326 C1066,320 1078,318 1088,320 Z"/>
+  </g>
+
+  <!-- pavement -->
+  <rect x="0" y="560" width="1200" height="115" fill="#10100F"/>
+  <line x1="0" y1="560" x2="1200" y2="560" stroke="#2C2C28" stroke-width="2"/>
+  <ellipse cx="600" cy="590" rx="330" ry="12" fill="#F2EBDD" opacity="0.04"/>
+
+  <rect width="1200" height="675" filter="url(#grain)"/>
+  <rect width="1200" height="675" fill="url(#vig)"/>
+</svg>

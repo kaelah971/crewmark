@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Sports coupe parked on a wet night street">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B0B0A"/>
+      <stop offset="0.7" stop-color="#141412"/>
+      <stop offset="1" stop-color="#1C1C18"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.45" r="0.75">
+      <stop offset="0.55" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.6"/>
+    </radialGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.05 0"/></filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#sky)"/>
+
+  <!-- distant skyline -->
+  <g fill="#060605">
+    <rect x="180" y="250" width="70" height="140"/><rect x="260" y="220" width="46" height="170"/>
+    <rect x="700" y="235" width="60" height="155"/><rect x="770" y="265" width="90" height="125"/>
+    <rect x="880" y="240" width="52" height="150"/>
+  </g>
+  <g fill="#D8FF3E" opacity="0.5">
+    <rect x="192" y="268" width="8" height="8"/><rect x="208" y="292" width="8" height="8"/>
+    <rect x="712" y="258" width="8" height="8"/><rect x="892" y="262" width="8" height="8"/>
+  </g>
+  <g fill="#88B8FF" opacity="0.45">
+    <rect x="272" y="244" width="8" height="8"/><rect x="786" y="288" width="8" height="8"/>
+  </g>
+
+  <!-- palms -->
+  <g fill="#080807">
+    <path d="M40,560 C50,470 44,400 60,340 L74,342 C60,405 66,475 58,560 Z"/>
+    <path d="M67,340 C40,320 20,318 4,326 C22,332 30,338 34,344 C20,340 8,342 0,348 C18,352 34,352 44,350 C40,360 40,368 42,376 C48,364 52,354 58,348 C62,358 68,366 76,370 C74,360 72,350 74,342 C86,348 98,348 110,344 C100,338 88,336 78,338 Z"/>
+    <path d="M1140,560 C1134,480 1140,410 1128,356 L1114,358 C1126,412 1120,482 1126,560 Z"/>
+    <path d="M1121,356 C1144,338 1162,336 1178,342 C1162,348 1154,354 1150,360 C1162,356 1174,358 1184,364 C1168,368 1152,368 1142,366 C1146,376 1146,384 1144,392 C1138,380 1134,370 1128,364 C1124,374 1118,382 1110,386 C1112,376 1114,366 1112,358 C1100,364 1088,364 1078,360 C1088,354 1100,352 1110,354 Z"/>
+  </g>
+
+  <!-- street lamp -->
+  <rect x="150" y="180" width="10" height="380" fill="#0A0A09"/>
+  <rect x="150" y="172" width="70" height="12" fill="#0A0A09"/>
+  <rect x="204" y="182" width="22" height="10" fill="#F2EBDD" opacity="0.9"/>
+  <polygon points="150,192 232,192 330,560 40,560" fill="#F2EBDD" opacity="0.05"/>
+  <ellipse cx="160" cy="560" rx="130" ry="14" fill="#F2EBDD" opacity="0.07"/>
+
+  <!-- wet asphalt -->
+  <rect x="0" y="540" width="1200" height="135" fill="#131312"/>
+  <line x1="0" y1="540" x2="1200" y2="540" stroke="#2C2C28" stroke-width="2"/>
+  <g opacity="0.12">
+    <rect x="150" y="560" width="26" height="90" fill="#F2EBDD"/>
+    <rect x="560" y="560" width="60" height="90" fill="#D8FF3E"/>
+    <rect x="880" y="560" width="30" height="90" fill="#88B8FF"/>
+  </g>
+
+  <!-- coupe -->
+  <ellipse cx="600" cy="560" rx="490" ry="18" fill="#000" opacity="0.55"/>
+  <path d="M80,500 C150,478 230,470 330,464 L410,458 C460,410 505,388 575,382 L720,380 C790,382 840,410 888,454 L1020,460 C1080,465 1115,480 1130,500 L1122,522 L88,522 Z"
+        fill="#242421" stroke="#43433D" stroke-width="2"/>
+  <path d="M80,500 L1122,500 L1122,522 L88,522 Z" fill="#1B1B19" opacity="0.65"/>
+  <path d="M435,452 C475,412 515,396 575,392 L716,390 C770,392 808,414 845,450 Z"
+        fill="#0B0E14" stroke="#33363F" stroke-width="2"/>
+  <line x1="625" y1="391" x2="625" y2="451" stroke="#33363F" stroke-width="6"/>
+  <line x1="490" y1="446" x2="560" y2="398" stroke="#88B8FF" stroke-width="4" opacity="0.3"/>
+  <rect x="470" y="458" width="300" height="62" fill="none" stroke="#4A4A44" stroke-width="2"/>
+  <rect x="722" y="468" width="34" height="8" rx="4" fill="#55554E"/>
+  <path d="M204,522 A66,66 0 0 1 336,522 Z" fill="#10100F"/>
+  <path d="M884,522 A66,66 0 0 1 1016,522 Z" fill="#10100F"/>
+  <path d="M90,496 L152,488 L148,502 L92,508 Z" fill="#F2EBDD" opacity="0.9"/>
+  <rect x="1104" y="488" width="24" height="10" fill="#FF4338"/>
+  <g>
+    <circle cx="270" cy="522" r="54" fill="#151513" stroke="#2E2E2A" stroke-width="3"/>
+    <circle cx="270" cy="522" r="27" fill="#1E1E1C" stroke="#70706B" stroke-width="3"/>
+    <line x1="270" y1="495" x2="270" y2="549" stroke="#70706B" stroke-width="3"/>
+    <line x1="243" y1="522" x2="297" y2="522" stroke="#70706B" stroke-width="3"/>
+    <circle cx="270" cy="522" r="6" fill="#D8FF3E"/>
+  </g>
+  <g>
+    <circle cx="950" cy="522" r="54" fill="#151513" stroke="#2E2E2A" stroke-width="3"/>
+    <circle cx="950" cy="522" r="27" fill="#1E1E1C" stroke="#70706B" stroke-width="3"/>
+    <line x1="950" y1="495" x2="950" y2="549" stroke="#70706B" stroke-width="3"/>
+    <line x1="923" y1="522" x2="977" y2="522" stroke="#70706B" stroke-width="3"/>
+    <circle cx="950" cy="522" r="6" fill="#D8FF3E"/>
+  </g>
+  <rect x="350" y="524" width="500" height="6" fill="#D8FF3E" opacity="0.9"/>
+
+  <rect width="1200" height="675" filter="url(#grain)"/>
+  <rect width="1200" height="675" fill="url(#vig)"/>
+</svg>
