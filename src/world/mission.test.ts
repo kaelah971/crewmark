@@ -535,12 +535,36 @@ describe("vehicle controller", () => {
     expect(Number.isFinite(delivery.heading)).toBe(true);
   });
 
-  it("only enters delivery when parked inside the delivery zone and completes once", () => {
-    expect(canEnterDelivery(110, 0)).toBe(false);
-    expect(canEnterDelivery(DELIVERY_ZONE.min, 1)).toBe(false);
-    expect(canEnterDelivery(DELIVERY_ZONE.min, 0)).toBe(true);
-    expect(shouldCompleteDelivery(false, DELIVERY_ZONE.min, 0)).toBe(true);
-    expect(shouldCompleteDelivery(true, DELIVERY_ZONE.min, 0)).toBe(false);
+  it("treats the route end and legacy resumed progress as terminal delivery area", () => {
+    expect(DELIVERY_ZONE.max).toBe(VEHICLE_TUNING.routeLength);
+    expect(inDeliveryZone(VEHICLE_TUNING.routeLength)).toBe(true);
+    expect(canEnterDelivery(VEHICLE_TUNING.routeLength, 0)).toBe(true);
+    expect(shouldCompleteDelivery(false, VEHICLE_TUNING.routeLength, 0)).toBe(true);
+    expect(shouldCompleteDelivery(true, VEHICLE_TUNING.routeLength, 0)).toBe(false);
+
+    for (const progress of [131, 135]) {
+      expect(canEnterDelivery(progress, 0)).toBe(true);
+      expect(shouldCompleteDelivery(false, progress, 0)).toBe(true);
+    }
+  });
+
+  it("does not churn at either hard route boundary", () => {
+    const atEnd = createVehicleState(VEHICLE_TUNING.routeLength);
+    let forward = stepVehicle(atEnd, { throttle: 1, steer: 0 }, 0.05, VEHICLE_TUNING.routeLength);
+    expect(forward).toBe(atEnd);
+    for (let i = 0; i < 20; i += 1) {
+      forward = stepVehicle(forward, { throttle: 1, steer: 0 }, 0.05, VEHICLE_TUNING.routeLength);
+    }
+    expect(forward).toBe(atEnd);
+    expect(forward.routeProgress).toBe(VEHICLE_TUNING.routeLength);
+    expect(forward.speed).toBe(0);
+    expect(forward.heading).toBe(atEnd.heading);
+
+    const atStart = createVehicleState(0);
+    const reverse = stepVehicle(atStart, { throttle: -1, steer: 0 }, 0.05, VEHICLE_TUNING.routeLength);
+    expect(reverse).toBe(atStart);
+    expect(reverse.routeProgress).toBe(0);
+    expect(reverse.speed).toBe(0);
   });
 
   it("detects stop, secondary, and delivery zones", () => {

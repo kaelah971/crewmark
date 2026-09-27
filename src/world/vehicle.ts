@@ -88,8 +88,8 @@ export const VEHICLE_TUNING = {
 export const STOP_ZONE = { min: 77, max: 85 } as const;
 /** Secondary inspection window behind the barrier stop line. */
 export const SECONDARY_ZONE = { min: 67, max: 74 } as const;
-/** Delivery marker deep in the restricted yard. */
-export const DELIVERY_ZONE = { min: 121, max: 130 } as const;
+/** Terminal delivery area: the final route segment has no dead strip. */
+export const DELIVERY_ZONE = { min: 121, max: VEHICLE_TUNING.routeLength } as const;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -196,17 +196,45 @@ export function stepVehicle(
   const dt = clamp(dtSeconds, 0, 0.08);
   const throttle = clamp(input.throttle, -1, 1);
   const steer = clamp(input.steer, -1, 1);
+  const maxProgress = clamp(endProgress, 0, VEHICLE_TUNING.routeLength);
+  const atForwardLimit = state.routeProgress >= maxProgress && state.speed >= 0;
+  const atReverseLimit = state.routeProgress <= 0 && state.speed <= 0;
+  const terminalRoute = sampleMissionRoute(state.routeProgress, state.lateralOffset);
+  const terminalHeadingStable = Math.abs(normalizeAngle(state.heading - terminalRoute.heading)) < 1e-6;
+  const heldAgainstForwardEnd = throttle > 0 && atForwardLimit;
+  const heldAgainstReverseEnd = throttle < 0 && atReverseLimit;
+  const stableForwardBoundary = heldAgainstForwardEnd && state.routeProgress === maxProgress;
+  const stableReverseBoundary = heldAgainstReverseEnd && state.routeProgress === 0;
+
+  // Once a stable car is held against either hard route limit, return the
+  // existing state instead of manufacturing an accelerate → clamp → zero
+  // update every frame. This keeps React/Three.js visually stable at the ends.
+  if (
+    (stableForwardBoundary || stableReverseBoundary) &&
+    steer === 0 &&
+    state.speed === 0 &&
+    state.lateralVelocity === 0 &&
+    state.steering === 0 &&
+    terminalHeadingStable
+  ) {
+    return state;
+  }
+
   let speed = state.speed;
 
   if (throttle > 0) {
     if (speed < 0) {
       speed = Math.min(0, speed + VEHICLE_TUNING.brake * throttle * dt);
+    } else if (heldAgainstForwardEnd) {
+      speed = 0;
     } else {
       speed = Math.min(VEHICLE_TUNING.maxSpeed, speed + VEHICLE_TUNING.accel * throttle * dt);
     }
   } else if (throttle < 0) {
     if (speed > 0) {
       speed = Math.max(0, speed + VEHICLE_TUNING.brake * throttle * dt);
+    } else if (heldAgainstReverseEnd) {
+      speed = 0;
     } else {
       speed = Math.max(VEHICLE_TUNING.maxReverse, speed + VEHICLE_TUNING.reverseAccel * throttle * dt);
     }
@@ -227,7 +255,6 @@ export function stepVehicle(
     lateralVelocity = 0;
   }
 
-  const maxProgress = clamp(endProgress, 0, VEHICLE_TUNING.routeLength);
   let routeProgress = state.routeProgress + speed * dt;
   if (routeProgress >= maxProgress) {
     routeProgress = maxProgress;
