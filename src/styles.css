@@ -2703,78 +2703,23 @@ body {
   z-index: 2;
 }
 
-/* Exact saved cover on the mission vehicle side panel. */
-.cm-mission-cover {
+/* Fixed-camera real sedan layer. The road, barrier, and photograph stay
+   world-locked; only the production GLB moves inside this transparent canvas. */
+.cm-mission-vehicle3d {
   position: absolute;
-  left: 30%;
-  top: 58%;
-  width: 18%;
-  aspect-ratio: 16 / 7;
-  pointer-events: none;
-  z-index: 2;
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.6));
-}
-
-.cm-mission-cover img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* Realistic service vehicle with exact player-designed COVER//01 */
-.cm-service-vehicle {
-  position: absolute;
-  /* The mission position is the road contact point, not the image centre. */
-  transform: translate(-50%, -62%);
-  pointer-events: none;
+  inset: 0;
   z-index: 3;
-  will-change: left, top, width, transform;
+  overflow: visible;
+  pointer-events: none;
 }
 
-.cm-service-vehicle::after {
-  content: "";
+.cm-mission-vehicle3d canvas {
   position: absolute;
-  left: 12%;
-  right: 12%;
-  bottom: 6%;
-  height: 14%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(1, 5, 8, 0.82) 0%, rgba(1, 5, 8, 0.34) 46%, transparent 78%);
-  filter: blur(5px);
-  pointer-events: none;
-  z-index: 0;
-}
-
-.cm-service-vehicle .cm-vehicle-livery--mission {
-  z-index: 1;
-}
-
-.cm-service-vehicle-img {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.85));
-}
-
-.cm-service-vehicle-cover {
-  position: absolute;
-  left: 28%;
-  top: 48%;
-  width: 28%;
-  aspect-ratio: 16 / 7;
-  pointer-events: none;
-  overflow: hidden;
-  border-radius: 2px;
-  filter: contrast(1.05) brightness(0.96) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
-}
-
-.cm-service-vehicle-cover img {
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  pointer-events: none;
 }
 
 /* Booth stop-line marker tuned for Port Vice service lane */
@@ -2788,7 +2733,7 @@ body {
   box-shadow: 0 0 10px rgba(242, 235, 221, 0.7);
   opacity: 0.85;
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;
 }
 
 /* Scanner frame: live beats over the exact cover metrics. */
@@ -2845,7 +2790,7 @@ body {
   border-radius: 50%;
   background: var(--cm-grey);
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;
 }
 
 .cm-boothlight.is-green {
@@ -2877,7 +2822,7 @@ body {
   transform-origin: left center;
   transition: transform 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
   pointer-events: none;
-  z-index: 2;
+  z-index: 5;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
 
@@ -2894,7 +2839,7 @@ body {
 /* Secondary inspection stop-line marker for weak/manual branch. */
 .cm-secondary-marker {
   position: absolute;
-  left: 36%;
+  left: 51%;
   top: 60%;
   width: 14%;
   height: 6px;
@@ -2902,7 +2847,7 @@ body {
   border: 1px dashed var(--cm-red);
   box-shadow: 0 0 12px rgba(255, 177, 62, 0.8);
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;
 }
 
 /* Package drop zone marker in restricted service yard. */
@@ -2916,7 +2861,7 @@ body {
   box-shadow: 0 0 14px rgba(216, 255, 62, 0.9);
   opacity: 0.85;
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;
 }
 
 /* ---------- P10 checkpoint bluff ---------- */
@@ -5533,13 +5478,6 @@ body {
   height: 100%;
 }
 
-.cm-vehicle-livery--mission {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
 .cm-mission-abort {
   position: fixed;
   top: 14px;
@@ -5603,14 +5541,6 @@ body {
   filter: blur(4px);
   mix-blend-mode: screen;
   opacity: 0.85;
-}
-
-.cm-service-vehicle {
-  aspect-ratio: 16 / 9;
-}
-
-.cm-vehicle-livery--mission .cm-vehicle-3d-img {
-  filter: brightness(1.14) saturate(1.02) contrast(1.08) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.78));
 }
 
 .cm-cover-frame--livery {

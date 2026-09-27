@@ -94,6 +94,7 @@ import {
   type CheckpointBranch,
   type MissionState,
 } from "./world/mission";
+import type { VehicleState } from "./world/vehicle";
 import VehicleEditor from "./components/VehicleEditor";
 import {
   type DisguisePackage,
@@ -552,7 +553,11 @@ export default function App() {
   };
 
   /** Checkpoint outcome: pays HEAT once, idempotently. */
-  const handleMissionCheckpoint = async (branch: CheckpointBranch, checkpointBluff?: CheckpointBluffState) => {
+  const handleMissionCheckpoint = async (
+    branch: CheckpointBranch,
+    checkpointBluff?: CheckpointBluffState,
+    routeState?: VehicleState,
+  ) => {
     const currentMission = missionStateRef.current;
     if (!currentMission || missionConsequenceBusy.current) return;
     missionConsequenceBusy.current = true;
@@ -560,6 +565,7 @@ export default function App() {
       const withOutcome = {
         ...withCheckpoint(currentMission, branch),
         ...(checkpointBluff ? { checkpointBluff } : {}),
+        ...(routeState ? { routeState } : {}),
       };
       if (shouldPayCheckpointHeat(withOutcome)) {
         const heatGain = CHECKPOINT_HEAT[branch];
@@ -613,11 +619,15 @@ export default function App() {
   };
 
   /** Abort is a durable pause; the frozen run remains resumable from 305. */
-  const handleMissionExit = async () => {
+  const handleMissionExit = async (routeState?: VehicleState) => {
     if (missionConsequenceBusy.current) return;
     const currentMission = missionStateRef.current;
     if (currentMission?.started && !currentMission.completed) {
-      const aborted = { ...currentMission, status: "aborted" as const };
+      const aborted = {
+        ...currentMission,
+        ...(routeState ? { routeState } : {}),
+        status: "aborted" as const,
+      };
       const persisted = await persistMissionState(aborted);
       missionStateRef.current = aborted;
       setMissionState(aborted);
@@ -1049,6 +1059,7 @@ export default function App() {
                   livery={missionState.snapshot.vehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY}
                   heat={progress.heat}
                   initialPhase={resumeMissionPhase(missionState) ?? "departure"}
+                  routeState={missionState.routeState}
                   missionRunId={missionState.missionRunId}
                   checkpointBluff={missionState.checkpointBluff}
                   onBluffStateChange={handleMissionBluffStateChange}

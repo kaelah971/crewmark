@@ -5,6 +5,7 @@ import type { CheckpointBranch, MissionState } from "../world/mission";
 import { validateCheckpointBluffState, type CheckpointBluffState } from "../world/checkpointBluff";
 import { createDisguisePackage, type DisguisePackage } from "./disguisePackage";
 import type { VehicleLivery } from "./vehicleLivery";
+import { VEHICLE_TUNING, type VehicleState } from "../world/vehicle";
 // One dedicated localStorage key — never merged into mark, progress, job,
 // or cover slots — so old saves load with no mission and RESET simply
 // removes the key. The stored snapshot freezes the cover analysis from
@@ -34,6 +35,30 @@ function isPlausibleMetrics(value: unknown): value is CreativeMetrics {
     typeof v.coverReadiness === "number" &&
     (v.cityAttention === "LOW" || v.cityAttention === "BALANCED" || v.cityAttention === "HIGH") &&
     typeof v.reaction === "string"
+  );
+}
+
+function isPlausibleRouteState(value: unknown): value is VehicleState {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.routeProgress === "number" &&
+    Number.isFinite(v.routeProgress) &&
+    v.routeProgress >= 0 &&
+    v.routeProgress <= VEHICLE_TUNING.routeLength &&
+    typeof v.lateralOffset === "number" &&
+    Number.isFinite(v.lateralOffset) &&
+    Math.abs(v.lateralOffset) <= VEHICLE_TUNING.maxLateralOffset &&
+    typeof v.lateralVelocity === "number" &&
+    Number.isFinite(v.lateralVelocity) &&
+    typeof v.speed === "number" &&
+    Number.isFinite(v.speed) &&
+    v.speed >= VEHICLE_TUNING.maxReverse &&
+    v.speed <= VEHICLE_TUNING.maxSpeed &&
+    typeof v.heading === "number" &&
+    Number.isFinite(v.heading) &&
+    typeof v.steering === "number" &&
+    Number.isFinite(v.steering)
   );
 }
 
@@ -67,6 +92,7 @@ function sanitize(raw: unknown): MissionState | null {
     ? (v.checkpointBluff as CheckpointBluffState)
     : undefined;
   const metrics = isPlausibleMetrics(snapshot.metrics) ? snapshot.metrics : undefined;
+  const routeState = isPlausibleRouteState(v.routeState) ? v.routeState : undefined;
   return {
     started: true,
     snapshot: {
@@ -83,6 +109,7 @@ function sanitize(raw: unknown): MissionState | null {
     checkpoint: checkpointBranch,
     checkpointHeatPaid: v.checkpointHeatPaid === true,
     ...(checkpointBluff ? { checkpointBluff } : {}),
+    ...(routeState ? { routeState } : {}),
     completed: v.completed === true,
     repPaid: v.repPaid === true,
     ...(typeof v.missionRunId === "string" && v.missionRunId ? { missionRunId: v.missionRunId } : {}),

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import WorldScene from "./world/WorldScene";
 import WorldHud from "./world/WorldHud";
-import { VehicleLiveryProjection } from "./VehicleLiveryProjection";
+import MissionVehicle3D from "./MissionVehicle3D";
 import CheckpointBluff from "./CheckpointBluff";
 import checkpointPlate from "../assets/world/port-vice-checkpoint.png";
 import {
@@ -16,6 +16,7 @@ import {
 } from "../world/mission";
 import {
   VEHICLE_TUNING,
+  createVehicleState,
   inDeliveryZone,
   inSecondaryZone,
   inStopZone,
@@ -41,8 +42,8 @@ import {
  *
  * Mounted assets:
  * 1. port-vice-checkpoint.png — the checkpoint raster.
- * 2. service-vehicle.png — the transparent player sedan receiving the
- *    shared derived livery across its panels.
+ * 2. public/models/sedan.glb — the real production sedan rendered by a
+ *    transparent Three.js vehicle layer.
  */
 
 export type MissionPhase =
@@ -69,6 +70,8 @@ interface MissionProps {
   anchor?: CoverAnchor;
   /** Initial phase (e.g. for resume). */
   initialPhase?: MissionPhase;
+  /** Saved route position used when an aborted run resumes. */
+  routeState?: VehicleState;
   /** Stable run identity used to select bluff questions. */
   missionRunId?: string;
   /** Persisted bluff checks from the mission lifecycle. */
@@ -76,11 +79,11 @@ interface MissionProps {
   /** Saves every bluff response without changing the frozen disguise. */
   onBluffStateChange?: (state: CheckpointBluffState) => void;
   /** Fired once when the gate outcome is determined (App pays heat). */
-  onCheckpoint: (branch: CheckpointBranch, bluffState?: CheckpointBluffState) => void;
+  onCheckpoint: (branch: CheckpointBranch, bluffState?: CheckpointBluffState, routeState?: VehicleState) => void;
   /** Fired once on delivery (App pays REP). */
   onComplete: () => void;
-  /** RETURN TO 305. */
-  onExit: () => void;
+  /** RETURN TO 305, carrying the current route state for durable resume. */
+  onExit: (routeState?: VehicleState) => void;
 }
 
 const SCAN_BEATS = ["Color profile", "Identity signal", "Service detail", "Surface age"] as const;
@@ -113,6 +116,7 @@ export default function Mission({
   heat,
   anchor: _anchor = DEFAULT_COVER_ANCHOR,
   initialPhase,
+  routeState: persistedRouteState,
   onCheckpoint,
   onBluffStateChange,
   onComplete,
@@ -137,13 +141,12 @@ export default function Mission({
     initialBluff.outcome ? branchForBluffOutcome(initialBluff.outcome) : null,
   );
   const [vehicle, setVehicle] = useState<VehicleState>(() => {
-    if (initialPhase === "bluff") {
-      return { dist: 82, lane: 0, speed: 0 };
+    if (persistedRouteState) return persistedRouteState;
+    if (initialPhase === "bluff") return createVehicleState(VEHICLE_TUNING.checkpointProgress);
+    if (initialPhase === "yard" || initialPhase === "delivery" || initialPhase === "result") {
+      return createVehicleState(94);
     }
-    if (initialPhase === "yard" || initialPhase === "delivery") {
-      return { dist: 94, lane: 0, speed: 0 };
-    }
-    return { dist: 0, lane: 0, speed: 0 };
+    return createVehicleState(0);
   });
   const [scanBeat, setScanBeat] = useState(0);
   const [gateOpen, setGateOpen] = useState(() => initialPhase === "yard" || initialPhase === "delivery" || initialPhase === "result");
@@ -169,7 +172,7 @@ export default function Mission({
     bluffStateRef.current = bluffState;
   });
 
-  const endDist = gateOpen || phase === "yard" || phase === "gate" ? VEHICLE_TUNING.yardEnd : VEHICLE_TUNING.barrierDist;
+  const endProgress = gateOpen || phase === "yard" || phase === "delivery" ? VEHICLE_TUNING.routeLength : VEHICLE_TUNING.barrierProgress;
 
   // Departure cinematic → approach.
   useEffect(() => {
@@ -188,7 +191,7 @@ export default function Mission({
       if (event.key !== "Escape" || isTypingTarget(event.target)) return;
       event.preventDefault();
       keysRef.current.clear();
-      onExit();
+      onExit(vehicleRef.current);
     };
     window.addEventListener("keydown", onAbortKeyDown);
     return () => window.removeEventListener("keydown", onAbortKeyDown);
@@ -202,7 +205,7 @@ export default function Mission({
     let last = performance.now();
     const completeDelivery = () => {
       const v = vehicleRef.current;
-      if (phaseRef.current === "delivery" && inDeliveryZone(v.dist) && isStopped(v.speed)) {
+      if (phaseRef.current === "delivery" && inDeliveryZone(v.routeProgress) && isStopped(v.speed)) {
         if (!completeFired.current) {
           completeFired.current = true;
           emitGameSound("mission-complete");
@@ -240,7 +243,7 @@ export default function Mission({
             (k.has("d") || k.has("ArrowRight") ? 1 : 0) - (k.has("a") || k.has("ArrowLeft") ? 1 : 0),
         },
         dt,
-        endDist,
+        endProgress,
       );
       vehicleRef.current = next;
       setVehicle(next);
@@ -253,8 +256,7 @@ export default function Mission({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [phase, endDist, onComplete]);
-
+  }, [phase, endProgress, onComplete]);
   // Delivery key listener: mounted only in delivery phase so keyboard E
   // completes delivery exactly like the [E] DELIVER PACKAGE button.
   useEffect(() => {
@@ -263,7 +265,7 @@ export default function Mission({
       if (isTypingTarget(e.target) || e.isComposing) return;
       if (e.key !== "e" && e.key !== "E") return;
       const v = vehicleRef.current;
-      if (inDeliveryZone(v.dist) && isStopped(v.speed)) {
+      if (inDeliveryZone(v.routeProgress) && isStopped(v.speed)) {
         if (!completeFired.current) {
           completeFired.current = true;
           emitGameSound("mission-complete");
@@ -279,7 +281,7 @@ export default function Mission({
   // Approach → bluff: correctly stopped inside the checkpoint stop zone.
   useEffect(() => {
     if (phase !== "approach") return;
-    if (inStopZone(vehicle.dist) && isStopped(vehicle.speed)) {
+    if (inStopZone(vehicle.routeProgress) && isStopped(vehicle.speed)) {
       stopTimer.current = window.setTimeout(() => {
         const active = activateCheckpointBluff(bluffStateRef.current);
         bluffStateRef.current = active;
@@ -291,8 +293,7 @@ export default function Mission({
       window.clearTimeout(stopTimer.current);
     }
     return () => window.clearTimeout(stopTimer.current);
-  }, [phase, vehicle.dist, vehicle.speed, onBluffStateChange]);
-
+  }, [phase, vehicle.routeProgress, vehicle.speed, onBluffStateChange]);
   // Resolve the cinematic result into the existing checkpoint branch, then
   // hand the player back to the existing gate/recovery flow.
   useEffect(() => {
@@ -301,7 +302,7 @@ export default function Mission({
       checkpointFired.current = true;
       const branch = branchForBluffOutcome(bluffState.outcome);
       emitGameSound(branch === "manual" ? "alert-tone" : "checkpoint-beep");
-      onCheckpoint(branch, bluffState);
+      onCheckpoint(branch, bluffState, vehicleRef.current);
     }
     window.clearTimeout(bluffOutcomeTimer.current);
     bluffOutcomeTimer.current = window.setTimeout(() => setPhase("gate"), bluffState.outcome === "busted" ? 2400 : 1900);
@@ -321,7 +322,7 @@ export default function Mission({
       emitGameSound("checkpoint-beep");
       if (!checkpointFired.current) {
         checkpointFired.current = true;
-        onCheckpoint(verdict, bluffState);
+        onCheckpoint(verdict, bluffState, vehicleRef.current);
       }
       setPhase("gate");
     }, 500);
@@ -354,7 +355,7 @@ export default function Mission({
   // Manual / weak-branch recovery: stopped in the secondary zone → temporary grant.
   useEffect(() => {
     if (phase !== "gate" || !isManual) return;
-    if (inSecondaryZone(vehicle.dist) && isStopped(vehicle.speed)) {
+    if (inSecondaryZone(vehicle.routeProgress) && isStopped(vehicle.speed)) {
       emitGameSound("checkpoint-beep");
       const t = window.setTimeout(() => {
         emitGameSound("barrier-motor");
@@ -364,17 +365,17 @@ export default function Mission({
       return () => window.clearTimeout(t);
     }
     return undefined;
-  }, [phase, isManual, vehicle.dist, vehicle.speed]);
+  }, [phase, isManual, vehicle.routeProgress, vehicle.speed]);
+
   // Yard → delivery prompt when parked in the delivery zone.
   useEffect(() => {
     if (phase !== "yard") return;
-    if (inDeliveryZone(vehicle.dist) && isStopped(vehicle.speed)) {
+    if (inDeliveryZone(vehicle.routeProgress) && isStopped(vehicle.speed)) {
       const t = window.setTimeout(() => setPhase("delivery"), 800);
       return () => window.clearTimeout(t);
     }
     return undefined;
-  }, [phase, vehicle.dist, vehicle.speed]);
-
+  }, [phase, vehicle.routeProgress, vehicle.speed]);
   const handleBluffStateChange = (next: CheckpointBluffState) => {
     setBluffState(next);
     onBluffStateChange?.(next);
@@ -386,7 +387,7 @@ export default function Mission({
     if (!checkpointFired.current) {
       checkpointFired.current = true;
       emitGameSound(branch === "manual" ? "alert-tone" : "checkpoint-beep");
-      onCheckpoint(branch, resolved);
+      onCheckpoint(branch, resolved, vehicleRef.current);
     }
   };
 
@@ -410,7 +411,7 @@ export default function Mission({
                 : "JOB//01 — COMPLETE";
 
   const prompt =
-    phase === "approach" && inStopZone(vehicle.dist) && !isStopped(vehicle.speed)
+    phase === "approach" && inStopZone(vehicle.routeProgress) && !isStopped(vehicle.speed)
       ? "STOP AT SECURITY LINE"
       : phase === "delivery"
         ? "DELIVER PACKAGE"
@@ -422,29 +423,16 @@ export default function Mission({
     { label: "Service detail", check: snapshot.analysis.checks.find((c) => c.id === "detail") },
     { label: "Surface age", check: snapshot.analysis.checks.find((c) => c.id === "weathering") },
   ];
-  const t = Math.min(1, Math.max(0, vehicle.dist / VEHICLE_TUNING.yardEnd));
-  // Smooth 2.5D perspective positioning along the Port Vice approach lane.
-  // Keep the sedan large enough to read as the player vehicle while it still
-  // recedes toward the booth instead of becoming a tiny road prop.
-  const isPreGate = t <= 0.68;
-  const progressNorm = isPreGate ? t / 0.68 : (t - 0.68) / 0.32;
-  const baseY = isPreGate ? 74 - progressNorm * 18 : 56 - progressNorm * 10;
-  const baseX = isPreGate ? 50 + progressNorm * 17 : 67 + progressNorm * 8;
-  const scale = isPreGate ? 1.06 - progressNorm * 0.34 : 0.72 - progressNorm * 0.15;
-  const laneSpan = 11.5 * (1 - t * 0.35);
-  const vehicleX = baseX + vehicle.lane * laneSpan;
-  const vehicleY = baseY + vehicle.lane * 1.35;
-  const vehicleWidth = Math.round(300 * scale);
-  const vehicleHeight = Math.round(vehicleWidth * 9 / 16);
-
-  // Camera smoothly frames approach → checkpoint booth → restricted yard
-  const camera = { x: 50 + t * 18, y: 64 - t * 14 };
+  /* routeProgress is rendered by the fixed-camera Three.js vehicle layer. */
+  // The photograph and transparent GLB layer share one fixed scene camera.
+  // Route progress changes the car in Three.js, never the plate or CSS pixels.
+  const camera = { x: 50, y: 50 };
   return (
     <section className="cm-screen" aria-label="Port Vice night delivery">
       <p className="cm-kicker">Job//01 // Port Vice // night delivery</p>
       {phase !== "result" && (
         <div className="cm-mission-abort">
-          <button type="button" className="btn btn-ghost" onClick={onExit}>
+          <button type="button" className="btn btn-ghost" onClick={() => onExit(vehicleRef.current)}>
             BACK TO 305 / ABORT RUN <span aria-hidden="true">[ESC]</span>
           </button>
         </div>
@@ -464,19 +452,8 @@ export default function Mission({
           />
         }
       >
-        {/* Real 3D liveried vehicle snapshot rendered from the frozen COVER//01 mission source */}
-        <div
-          className="cm-service-vehicle"
-          style={{
-            left: `${vehicleX}%`,
-            top: `${vehicleY}%`,
-            width: `${vehicleWidth}px`,
-            height: `${vehicleHeight}px`,
-          }}
-          aria-hidden={true}
-        >
-          <VehicleLiveryProjection livery={livery} angle="mission" className="cm-vehicle-livery--mission" />
-        </div>
+        {/* Production GLB vehicle rendered from the frozen COVER//01 mission source */}
+        <MissionVehicle3D livery={livery} state={vehicle} />
         {/* Booth stop-line marker tuned for Port Vice service lane */}
         <div className="cm-stopline" aria-hidden={true} />
         {/* Secondary inspection stop-line marker for weak/manual branch */}
@@ -541,7 +518,7 @@ export default function Mission({
           heat={heat}
           onStateChange={handleBluffStateChange}
           onResolve={handleBluffResolve}
-          onAbort={onExit}
+          onAbort={() => onExit(vehicleRef.current)}
         />
       )}
 
@@ -583,7 +560,7 @@ export default function Mission({
           <p className="cm-workorder-objective">The cover got you inside.</p>
           <p className="cm-hint">But cameras keep receipts.</p>
           <div className="cm-cta-row">
-            <button type="button" className="btn btn-primary" onClick={onExit}>
+            <button type="button" className="btn btn-primary" onClick={() => onExit(vehicleRef.current)}>
               Return to 305
             </button>
           </div>

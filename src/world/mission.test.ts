@@ -21,10 +21,12 @@ import {
   SECONDARY_ZONE,
   STOP_ZONE,
   VEHICLE_TUNING,
+  createVehicleState,
   inDeliveryZone,
   inSecondaryZone,
   inStopZone,
   isStopped,
+  sampleMissionRoute,
   stepVehicle,
 } from "./vehicle";
 import type { CoverAnalysis } from "../lib/coverAnalysis";
@@ -207,6 +209,19 @@ describe("mission persistence", () => {
 
   it("round-trips the full record (refresh path)", () => {
     const state = fullState();
+    expect(saveMission(state)).toBe(true);
+    expect(loadMission()).toEqual(state);
+  });
+
+  it("persists authored route position for resumable handoff", () => {
+    const state = {
+      ...fullState(),
+      routeState: { ...createVehicleState(74), lateralOffset: -0.4 },
+      missionRunId: "mission-route-test",
+      status: "aborted" as const,
+      completed: false,
+      repPaid: false,
+    };
     expect(saveMission(state)).toBe(true);
     expect(loadMission()).toEqual(state);
   });
@@ -455,36 +470,53 @@ describe("cover snapshot immutable after mission start", () => {
 });
 
 describe("vehicle controller", () => {
-  it("accelerates toward max speed and caps there", () => {
-    let v = { dist: 0, lane: 0, speed: 0 };
-    for (let i = 0; i < 40; i += 1) v = stepVehicle(v, { throttle: 1, steer: 0 }, 0.05);
+  it("accelerates along the authored route and caps forward speed", () => {
+    let v = createVehicleState(0);
+    for (let i = 0; i < 80; i += 1) v = stepVehicle(v, { throttle: 1, steer: 0 }, 0.05);
     expect(v.speed).toBeLessThanOrEqual(VEHICLE_TUNING.maxSpeed);
     expect(v.speed).toBe(VEHICLE_TUNING.maxSpeed);
-    expect(v.dist).toBeGreaterThan(0);
+    expect(v.routeProgress).toBeGreaterThan(0);
   });
 
-  it("brakes to a stop and reverses within the reverse cap", () => {
-    let v = { dist: 50, lane: 0, speed: 20 };
-    for (let i = 0; i < 200; i += 1) v = stepVehicle(v, { throttle: -1, steer: 0 }, 0.05);
-    expect(v.speed).toBeGreaterThanOrEqual(VEHICLE_TUNING.maxReverse);
+  it("brakes forward motion before genuinely reversing", () => {
+    let v = { ...createVehicleState(50), speed: 8 };
+    const before = stepVehicle(v, { throttle: -1, steer: 0 }, 0.05);
+    expect(before.speed).toBe(7.325);
+    expect(before.speed).toBeGreaterThan(0);
+    for (let i = 0; i < 160; i += 1) v = stepVehicle(v, { throttle: -1, steer: 0 }, 0.05);
     expect(v.speed).toBe(VEHICLE_TUNING.maxReverse);
+    expect(v.routeProgress).toBeLessThan(50);
   });
 
-  it("coasts to a stop with drag", () => {
-    let v = { dist: 50, lane: 0, speed: 10 };
+  it("coasts to a stop with friction", () => {
+    let v = { ...createVehicleState(50), speed: 10 };
     for (let i = 0; i < 400; i += 1) v = stepVehicle(v, { throttle: 0, steer: 0 }, 0.05);
     expect(isStopped(v.speed)).toBe(true);
   });
 
-  it("never passes the closed barrier and kills momentum into it", () => {
-    const v = stepVehicle({ dist: 91.9, lane: 0, speed: 26 }, { throttle: 1, steer: 0 }, 1);
-    expect(v.dist).toBe(VEHICLE_TUNING.barrierDist);
+  it("never passes the closed barrier and kills forward momentum", () => {
+    const v = stepVehicle({ ...createVehicleState(87.9), speed: 12 }, { throttle: 1, steer: 0 }, 1);
+    expect(v.routeProgress).toBe(VEHICLE_TUNING.barrierProgress);
     expect(v.speed).toBe(0);
   });
 
-  it("clamps lane steering to [-1, 1]", () => {
-    const v = stepVehicle({ dist: 10, lane: 0, speed: 0 }, { throttle: 0, steer: 5 }, 10);
-    expect(v.lane).toBe(1);
+  it("keeps lateral steering inside the authored lane corridor and turns the heading", () => {
+    let v = { ...createVehicleState(20), speed: 8 };
+    for (let i = 0; i < 100; i += 1) v = stepVehicle(v, { throttle: 0, steer: 1 }, 0.05);
+    expect(Math.abs(v.lateralOffset)).toBeLessThanOrEqual(VEHICLE_TUNING.maxLateralOffset);
+    expect(v.heading).not.toBe(createVehicleState(20).heading);
+  });
+
+  it("keeps route samples grounded and projects the checkpoint turn", () => {
+    const start = sampleMissionRoute(0);
+    const checkpoint = sampleMissionRoute(VEHICLE_TUNING.checkpointProgress);
+    const delivery = sampleMissionRoute(125, 99);
+    expect(start.z).toBe(0);
+    expect(checkpoint.z).toBeGreaterThan(start.z);
+    expect(checkpoint.x).toBeLessThan(start.x);
+    expect(delivery.x).toBeGreaterThanOrEqual(sampleMissionRoute(125, -VEHICLE_TUNING.maxLateralOffset).x);
+    expect(Math.hypot(checkpoint.tangentX, checkpoint.tangentZ)).toBeCloseTo(1, 5);
+    expect(Number.isFinite(delivery.heading)).toBe(true);
   });
 
   it("detects stop, secondary, and delivery zones", () => {

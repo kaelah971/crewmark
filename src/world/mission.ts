@@ -3,6 +3,7 @@ import type { CoverAnalysis, CoverCheckStatus } from "../lib/coverAnalysis";
 import { createDisguisePackage, type DisguisePackage } from "../lib/disguisePackage";
 import type { CoverRecord } from "../lib/coverStorage";
 import type { VehicleLivery } from "../lib/vehicleLivery";
+import { createVehicleState, type VehicleState } from "./vehicle";
 import type { CreativeMetrics, CityAttention } from "../lib/creativeMetrics";
 import {
   createCheckpointBluffState,
@@ -146,6 +147,8 @@ export interface MissionState {
   readonly checkpointHeatPaid: boolean;
   /** Persisted bluff checks keep the same questions, score, and responses on resume. */
   readonly checkpointBluff?: CheckpointBluffState;
+  /** Last authored-route position captured on checkpoint/abort for resume. */
+  readonly routeState?: VehicleState;
   readonly completed: boolean;
   readonly completedAt?: string;
   readonly repPaid: boolean;
@@ -206,6 +209,7 @@ export function startMissionState(
       cover.metrics?.coverReadiness ?? cover.analysis.score,
       cover.metrics?.cityAttention ?? fallbackAttention(cover.analysis.score),
     ),
+    routeState: createVehicleState(0),
     completed: false,
     repPaid: false,
     completionRewardPaid: false,
@@ -248,8 +252,8 @@ export interface CoverAnchor {
 }
 
 /**
- * Tuned against src/assets/world/service-vehicle.png:
- * Anchors the exact cover onto the driver/passenger door panel surface.
+ * Retained for yard/inspection cover composition; Port Vice driving uses the
+ * authored route and GLB scene instead of this screen-space anchor.
  */
 export const DEFAULT_COVER_ANCHOR: CoverAnchor = {
   left: "28%",
