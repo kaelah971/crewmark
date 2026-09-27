@@ -4,6 +4,7 @@ import type { VisualSignatureComparison } from "./signatureComparison";
 import type { CoverTemplateId } from "./coverTemplates";
 import type { DisguisePackage } from "./disguisePackage";
 import type { VehicleLivery } from "./vehicleLivery";
+import type { CreativeMetrics } from "./creativeMetrics";
 import {
   clearDisguisePackage,
   clearDisguisePackages,
@@ -23,9 +24,11 @@ import {
 
 const IMAGE_KEY = "crewmark:r:cover01";
 const ANALYSIS_KEY = "crewmark:r:cover01analysis";
+const METRICS_KEY = "crewmark:r:cover01metrics";
 
 const IMAGE_KEY_V2 = "crewmark:r:cover02";
 const ANALYSIS_KEY_V2 = "crewmark:r:cover02analysis";
+const METRICS_KEY_V2 = "crewmark:r:cover02metrics";
 const SIGNATURE_KEY_V2 = "crewmark:r:cover02signature";
 
 export {
@@ -39,6 +42,7 @@ export {
 export interface CoverRecord {
   readonly image: string;
   readonly analysis: CoverAnalysis;
+  readonly metrics?: CreativeMetrics;
   readonly lockedAt: string;
   readonly templateId?: CoverTemplateId | null;
   readonly disguisePackage?: DisguisePackage;
@@ -50,6 +54,7 @@ export interface Cover02Record {
   readonly image: string;
   readonly analysis: CoverAnalysis;
   readonly signature: VisualSignatureComparison;
+  readonly metrics?: CreativeMetrics;
   readonly lockedAt: string;
   readonly templateId?: CoverTemplateId | null;
   readonly disguisePackage?: DisguisePackage;
@@ -83,6 +88,30 @@ function isPlausibleAnalysis(value: unknown): value is CoverAnalysis {
   );
 }
 
+function isPlausibleMetrics(value: unknown): value is CreativeMetrics {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v.schemaVersion === 1 &&
+    typeof v.coverReadiness === "number" &&
+    v.coverReadiness >= 0 &&
+    v.coverReadiness <= 100 &&
+    (v.cityAttention === "LOW" || v.cityAttention === "BALANCED" || v.cityAttention === "HIGH") &&
+    typeof v.reaction === "string"
+  );
+}
+
+function loadMetrics(key: string): CreativeMetrics | undefined {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return undefined;
+    const parsed: unknown = JSON.parse(raw);
+    return isPlausibleMetrics(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function isPlausibleSignature(value: unknown): value is VisualSignatureComparison {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -102,12 +131,14 @@ export function loadCoverRecord(): CoverRecord | null {
     if (!isPlausibleImage(image) || rawAnalysis === null) return null;
     const analysis: unknown = JSON.parse(rawAnalysis);
     if (!isPlausibleAnalysis(analysis)) return null;
+    const metrics = loadMetrics(METRICS_KEY);
     const lockedAt = window.localStorage.getItem(`${IMAGE_KEY}:lockedAt`);
     const pkg = loadDisguisePackage("COVER//01");
     if (!pkg || pkg.identityArtwork !== image) return null;
     return {
       image,
       analysis,
+      metrics,
       lockedAt: typeof lockedAt === "string" ? lockedAt : "",
       templateId: pkg.templateId ?? null,
       disguisePackage: pkg,
@@ -124,6 +155,7 @@ export function saveCoverRecord(
   analysis: CoverAnalysis,
   lockedAt: string,
   pkg?: DisguisePackage,
+  metrics?: CreativeMetrics,
 ): boolean {
   let packageValue: DisguisePackage;
   try {
@@ -132,11 +164,13 @@ export function saveCoverRecord(
     return false;
   }
   if (packageValue.identityArtwork !== image || packageValue.slot !== "COVER//01") return false;
-  const previous = [IMAGE_KEY, ANALYSIS_KEY, `${IMAGE_KEY}:lockedAt`]
+  const previous = [IMAGE_KEY, ANALYSIS_KEY, METRICS_KEY, `${IMAGE_KEY}:lockedAt`]
     .map((key) => [key, window.localStorage.getItem(key)] as const);
   try {
     window.localStorage.setItem(IMAGE_KEY, image);
     window.localStorage.setItem(ANALYSIS_KEY, JSON.stringify(analysis));
+    if (metrics) window.localStorage.setItem(METRICS_KEY, JSON.stringify(metrics));
+    else window.localStorage.removeItem(METRICS_KEY);
     window.localStorage.setItem(`${IMAGE_KEY}:lockedAt`, lockedAt);
     if (!replaceDisguisePackage("COVER//01", packageValue)) throw new Error("disguise package persistence failed");
     return true;
@@ -160,6 +194,7 @@ export function loadCover02Record(): Cover02Record | null {
     const analysis: unknown = JSON.parse(rawAnalysis);
     const signature: unknown = JSON.parse(rawSignature);
     if (!isPlausibleAnalysis(analysis) || !isPlausibleSignature(signature)) return null;
+    const metrics = loadMetrics(METRICS_KEY_V2);
     const lockedAt = window.localStorage.getItem(`${IMAGE_KEY_V2}:lockedAt`);
     const pkg = loadDisguisePackage("COVER//02");
     if (!pkg || pkg.identityArtwork !== image) return null;
@@ -167,6 +202,7 @@ export function loadCover02Record(): Cover02Record | null {
       image,
       analysis,
       signature,
+      metrics,
       lockedAt: typeof lockedAt === "string" ? lockedAt : "",
       templateId: pkg.templateId ?? null,
       disguisePackage: pkg,
@@ -184,6 +220,7 @@ export function saveCover02Record(
   signature: VisualSignatureComparison,
   lockedAt: string,
   pkg?: DisguisePackage,
+  metrics?: CreativeMetrics,
 ): boolean {
   let packageValue: DisguisePackage;
   try {
@@ -192,11 +229,13 @@ export function saveCover02Record(
     return false;
   }
   if (packageValue.identityArtwork !== image || packageValue.slot !== "COVER//02") return false;
-  const previous = [IMAGE_KEY_V2, ANALYSIS_KEY_V2, SIGNATURE_KEY_V2, `${IMAGE_KEY_V2}:lockedAt`]
+  const previous = [IMAGE_KEY_V2, ANALYSIS_KEY_V2, METRICS_KEY_V2, SIGNATURE_KEY_V2, `${IMAGE_KEY_V2}:lockedAt`]
     .map((key) => [key, window.localStorage.getItem(key)] as const);
   try {
     window.localStorage.setItem(IMAGE_KEY_V2, image);
     window.localStorage.setItem(ANALYSIS_KEY_V2, JSON.stringify(analysis));
+    if (metrics) window.localStorage.setItem(METRICS_KEY_V2, JSON.stringify(metrics));
+    else window.localStorage.removeItem(METRICS_KEY_V2);
     window.localStorage.setItem(SIGNATURE_KEY_V2, JSON.stringify(signature));
     window.localStorage.setItem(`${IMAGE_KEY_V2}:lockedAt`, lockedAt);
     if (!replaceDisguisePackage("COVER//02", packageValue)) throw new Error("disguise package persistence failed");
@@ -216,6 +255,7 @@ export function clearCover02Record(): void {
   try {
     window.localStorage.removeItem(IMAGE_KEY_V2);
     window.localStorage.removeItem(ANALYSIS_KEY_V2);
+    window.localStorage.removeItem(METRICS_KEY_V2);
     window.localStorage.removeItem(SIGNATURE_KEY_V2);
     window.localStorage.removeItem(`${IMAGE_KEY_V2}:lockedAt`);
   } catch (err) {
@@ -229,6 +269,7 @@ export function clearCoverRecord(): void {
   try {
     window.localStorage.removeItem(IMAGE_KEY);
     window.localStorage.removeItem(ANALYSIS_KEY);
+    window.localStorage.removeItem(METRICS_KEY);
     window.localStorage.removeItem(`${IMAGE_KEY}:lockedAt`);
     clearCover02Record();
     clearDisguisePackages();
@@ -257,6 +298,7 @@ export async function saveCoverRecordAsync(
   analysis: CoverAnalysis,
   lockedAt: string,
   pkg?: DisguisePackage,
+  metrics?: CreativeMetrics,
 ): Promise<boolean> {
   let packageValue: DisguisePackage;
   try {
@@ -266,6 +308,8 @@ export async function saveCoverRecordAsync(
     if (!(await replaceDisguisePackageAsync("COVER//01", packageValue))) return false;
     window.localStorage.setItem(IMAGE_KEY, assetEnvelope(assetRef));
     window.localStorage.setItem(ANALYSIS_KEY, JSON.stringify(analysis));
+    if (metrics) window.localStorage.setItem(METRICS_KEY, JSON.stringify(metrics));
+    else window.localStorage.removeItem(METRICS_KEY);
     window.localStorage.setItem(`${IMAGE_KEY}:lockedAt`, lockedAt);
     return true;
   } catch (err) {
@@ -280,6 +324,7 @@ export async function saveCover02RecordAsync(
   signature: VisualSignatureComparison,
   lockedAt: string,
   pkg?: DisguisePackage,
+  metrics?: CreativeMetrics,
 ): Promise<boolean> {
   let packageValue: DisguisePackage;
   try {
@@ -289,6 +334,8 @@ export async function saveCover02RecordAsync(
     if (!(await replaceDisguisePackageAsync("COVER//02", packageValue))) return false;
     window.localStorage.setItem(IMAGE_KEY_V2, assetEnvelope(assetRef));
     window.localStorage.setItem(ANALYSIS_KEY_V2, JSON.stringify(analysis));
+    if (metrics) window.localStorage.setItem(METRICS_KEY_V2, JSON.stringify(metrics));
+    else window.localStorage.removeItem(METRICS_KEY_V2);
     window.localStorage.setItem(SIGNATURE_KEY_V2, JSON.stringify(signature));
     window.localStorage.setItem(`${IMAGE_KEY_V2}:lockedAt`, lockedAt);
     return true;
@@ -314,9 +361,10 @@ export async function loadCoverRecordAsync(): Promise<CoverRecord | null> {
     }
     const image = await getCoverAsset(envelope);
     const analysis: unknown = JSON.parse(rawAnalysis);
+    const metrics = loadMetrics(METRICS_KEY);
     const pkg = await loadDisguisePackageAsync("COVER//01");
     if (!image || !isPlausibleAnalysis(analysis) || !pkg || pkg.identityArtwork !== image) return null;
-    return { image, analysis, lockedAt: window.localStorage.getItem(`${IMAGE_KEY}:lockedAt`) ?? "", templateId: pkg.templateId ?? null, disguisePackage: pkg, vehicleLivery: pkg.vehicleLivery, assetRef: envelope };
+    return { image, analysis, metrics, lockedAt: window.localStorage.getItem(`${IMAGE_KEY}:lockedAt`) ?? "", templateId: pkg.templateId ?? null, disguisePackage: pkg, vehicleLivery: pkg.vehicleLivery, assetRef: envelope };
   } catch {
     return null;
   }
@@ -340,9 +388,10 @@ export async function loadCover02RecordAsync(): Promise<Cover02Record | null> {
     const image = await getCoverAsset(envelope);
     const analysis: unknown = JSON.parse(rawAnalysis);
     const signature: unknown = JSON.parse(rawSignature);
+    const metrics = loadMetrics(METRICS_KEY_V2);
     const pkg = await loadDisguisePackageAsync("COVER//02");
     if (!image || !isPlausibleAnalysis(analysis) || !isPlausibleSignature(signature) || !pkg || pkg.identityArtwork !== image) return null;
-    return { image, analysis, signature, lockedAt: window.localStorage.getItem(`${IMAGE_KEY_V2}:lockedAt`) ?? "", templateId: pkg.templateId ?? null, disguisePackage: pkg, vehicleLivery: pkg.vehicleLivery, assetRef: envelope };
+    return { image, analysis, signature, metrics, lockedAt: window.localStorage.getItem(`${IMAGE_KEY_V2}:lockedAt`) ?? "", templateId: pkg.templateId ?? null, disguisePackage: pkg, vehicleLivery: pkg.vehicleLivery, assetRef: envelope };
   } catch {
     return null;
   }

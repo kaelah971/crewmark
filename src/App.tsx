@@ -60,6 +60,7 @@ import { createCoverStarterDataUrl } from "./lib/coverCanvas";
 import type { CoverAnalysis } from "./lib/coverAnalysis";
 import type { CoverTemplateId } from "./lib/coverTemplates";
 import type { CreativeMetrics } from "./lib/creativeMetrics";
+import type { CheckpointBluffState } from "./world/checkpointBluff";
 import {
   loadChosenFront,
   saveChosenFront,
@@ -199,7 +200,9 @@ export default function App() {
   const [cover, setCover] = useState<CoverRecord | null>(() => loadCoverRecord());
   const [cover02, setCover02] = useState<Cover02Record | null>(() => loadCover02Record());
   const [missionState, setMissionState] = useState<MissionState | null>(() => loadMission());
+  const missionStateRef = useRef<MissionState | null>(missionState);
   const missionConsequenceBusy = useRef(false);
+  const missionPersistenceChain = useRef<Promise<boolean>>(Promise.resolve(true));
   const receiptConsequenceBusy = useRef(false);
   const [receiptState, setReceiptState] = useState<ReceiptState>(() => loadReceiptState());
   // P6 Creative Playground: chosen front and final run receipt state.
@@ -216,7 +219,13 @@ export default function App() {
       if (!live) return;
       if (cover01) setCover(cover01);
       if (cover02) setCover02(cover02);
-      if (mission) setMissionState(mission);
+      if (mission) {
+        setMissionState((previous) => {
+          // Do not let a slower hydration read replace a newly started run.
+          if (previous?.missionRunId && mission.missionRunId && previous.missionRunId !== mission.missionRunId) return previous;
+          return mission;
+        });
+      }
       if (receipt) setRunReceipt(receipt);
       const restoredPackage = cover02?.disguisePackage ?? (receiptState.cover01Burned ? null : cover01?.disguisePackage ?? null);
       if (restoredPackage) setActivePackage(restoredPackage);
@@ -415,13 +424,14 @@ export default function App() {
     if (missionState?.started && !missionState.completed) return;
     const lockedAt = new Date().toISOString();
     const updatedPkg = packageForCommit(dataUrl, "COVER//01");
-    const persisted = await saveCoverRecordAsync(dataUrl, analysis, lockedAt, updatedPkg);
+    const persisted = await saveCoverRecordAsync(dataUrl, analysis, lockedAt, updatedPkg, metrics);
     setActivePackage(updatedPkg);
     setCover({
       image: dataUrl,
       analysis,
       lockedAt,
       templateId: updatedPkg.templateId,
+      metrics,
       disguisePackage: updatedPkg,
       vehicleLivery: updatedPkg.vehicleLivery,
     });
@@ -444,7 +454,7 @@ export default function App() {
     if (missionState?.started && !missionState.completed) return;
     const lockedAt = new Date().toISOString();
     const updatedPkg = packageForCommit(dataUrl, "COVER//02");
-    const persisted = await saveCover02RecordAsync(dataUrl, analysis, signature, lockedAt, updatedPkg);
+    const persisted = await saveCover02RecordAsync(dataUrl, analysis, signature, lockedAt, updatedPkg, metrics);
     setPersistWarning(!persisted);
     setActivePackage(updatedPkg);
     setCover02({
@@ -453,6 +463,7 @@ export default function App() {
       signature,
       lockedAt,
       templateId: updatedPkg.templateId,
+      metrics,
       disguisePackage: updatedPkg,
       vehicleLivery: updatedPkg.vehicleLivery,
     });
@@ -482,6 +493,18 @@ export default function App() {
     }
     setStage("print-apply");
   };
+  const persistMissionState = (state: MissionState): Promise<boolean> => {
+    const write = missionPersistenceChain.current
+      .catch(() => false)
+      .then(() => saveMissionAsync(state));
+    missionPersistenceChain.current = write.catch(() => false);
+    return write;
+  };
+
+  useEffect(() => {
+    missionStateRef.current = missionState;
+  }, [missionState]);
+
   const handleStartJob = async () => {
     if (missionState?.started && !missionState.completed) {
       const resumed = missionState.status === "aborted" || !missionState.missionRunId
@@ -492,7 +515,8 @@ export default function App() {
           }
         : missionState;
       if (resumed !== missionState) {
-        const persisted = await saveMissionAsync(resumed);
+        const persisted = await persistMissionState(resumed);
+        missionStateRef.current = resumed;
         setMissionState(resumed);
         setPersistWarning(!persisted);
       }
@@ -502,7 +526,8 @@ export default function App() {
     if (!cover) return;
     const runPackage = activePackage?.slot === "COVER//01" ? activePackage : cover.disguisePackage;
     const nextMission = startMissionState(cover, runPackage);
-    const persisted = await saveMissionAsync(nextMission);
+    const persisted = await persistMissionState(nextMission);
+    missionStateRef.current = nextMission;
     setMissionState(nextMission);
     setPersistWarning(!persisted);
     console.info("[crewmark] JOB//01 mission started with frozen disguise package snapshot.", {
@@ -512,16 +537,35 @@ export default function App() {
     setStage("mission");
   };
 
+  const handleMissionBluffStateChange = async (checkpointBluff: CheckpointBluffState) => {
+    const currentMission = missionStateRef.current;
+    if (!currentMission) return;
+    const nextState = { ...currentMission, checkpointBluff };
+    const persisted = await persistMissionState(nextState);
+    if (missionStateRef.current?.missionRunId !== currentMission.missionRunId) return;
+    missionStateRef.current = nextState;
+    setMissionState((previous) => {
+      if (!previous || previous.missionRunId !== currentMission.missionRunId) return previous;
+      return { ...previous, checkpointBluff };
+    });
+    setPersistWarning(!persisted);
+  };
+
   /** Checkpoint outcome: pays HEAT once, idempotently. */
-  const handleMissionCheckpoint = async (branch: CheckpointBranch) => {
-    if (!missionState || missionConsequenceBusy.current) return;
+  const handleMissionCheckpoint = async (branch: CheckpointBranch, checkpointBluff?: CheckpointBluffState) => {
+    const currentMission = missionStateRef.current;
+    if (!currentMission || missionConsequenceBusy.current) return;
     missionConsequenceBusy.current = true;
     try {
-      const withOutcome = withCheckpoint(missionState, branch);
+      const withOutcome = {
+        ...withCheckpoint(currentMission, branch),
+        ...(checkpointBluff ? { checkpointBluff } : {}),
+      };
       if (shouldPayCheckpointHeat(withOutcome)) {
         const heatGain = CHECKPOINT_HEAT[branch];
         const paid = withCheckpointHeatPaid(withOutcome);
-        const persisted = await saveMissionAsync(paid);
+        const persisted = await persistMissionState(paid);
+        missionStateRef.current = paid;
         setMissionState(paid);
         setPersistWarning(!persisted);
         setProgress((prev) => ({
@@ -530,6 +574,10 @@ export default function App() {
         }));
         console.info("[crewmark] Checkpoint heat applied.", { branch, heatGain });
       } else {
+        const persisted = await persistMissionState(withOutcome);
+        missionStateRef.current = withOutcome;
+        setMissionState(withOutcome);
+        setPersistWarning(!persisted);
         console.info("[crewmark] Checkpoint heat already paid — no heat added.");
       }
     } finally {
@@ -538,13 +586,15 @@ export default function App() {
   };
 
   const handleMissionComplete = async () => {
-    if (!missionState || missionConsequenceBusy.current) return;
+    const currentMission = missionStateRef.current;
+    if (!currentMission || missionConsequenceBusy.current) return;
     missionConsequenceBusy.current = true;
     try {
-      const completedState = withCompleted(missionState);
+      const completedState = withCompleted(currentMission);
       if (shouldPayCompletion(completedState)) {
         const paid = withRepPaid(completedState);
-        const persisted = await saveMissionAsync(paid);
+        const persisted = await persistMissionState(paid);
+        missionStateRef.current = paid;
         setMissionState(paid);
         setPersistWarning(!persisted);
         setProgress((prev) => ({
@@ -565,9 +615,11 @@ export default function App() {
   /** Abort is a durable pause; the frozen run remains resumable from 305. */
   const handleMissionExit = async () => {
     if (missionConsequenceBusy.current) return;
-    if (missionState?.started && !missionState.completed) {
-      const aborted = { ...missionState, status: "aborted" as const };
-      const persisted = await saveMissionAsync(aborted);
+    const currentMission = missionStateRef.current;
+    if (currentMission?.started && !currentMission.completed) {
+      const aborted = { ...currentMission, status: "aborted" as const };
+      const persisted = await persistMissionState(aborted);
+      missionStateRef.current = aborted;
       setMissionState(aborted);
       setPersistWarning(!persisted);
     }
@@ -621,6 +673,7 @@ export default function App() {
     setCover02(null);
     setChosenFront(null);
     setRunReceipt(null);
+    missionStateRef.current = null;
     setMissionState(null);
     setReceiptState(EMPTY_RECEIPT_STATE);
     missionConsequenceBusy.current = false;
@@ -996,6 +1049,9 @@ export default function App() {
                   livery={missionState.snapshot.vehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY}
                   heat={progress.heat}
                   initialPhase={resumeMissionPhase(missionState) ?? "departure"}
+                  missionRunId={missionState.missionRunId}
+                  checkpointBluff={missionState.checkpointBluff}
+                  onBluffStateChange={handleMissionBluffStateChange}
                   onCheckpoint={handleMissionCheckpoint}
                   onComplete={handleMissionComplete}
                   onExit={handleMissionExit}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import WorldScene from "./world/WorldScene";
 import WorldHud from "./world/WorldHud";
 import { VehicleLiveryProjection } from "./VehicleLiveryProjection";
+import CheckpointBluff from "./CheckpointBluff";
 import checkpointPlate from "../assets/world/port-vice-checkpoint.png";
 import {
   CHECKPOINT_HEAT,
@@ -24,6 +25,12 @@ import {
 } from "../world/vehicle";
 import type { VehicleLivery } from "../lib/vehicleLivery";
 import { emitGameSound } from "../lib/audio";
+import {
+  activateCheckpointBluff,
+  branchForBluffOutcome,
+  createCheckpointBluffState,
+  type CheckpointBluffState,
+} from "../world/checkpointBluff";
 
 /**
  * PENDING-PLATE — do not mount until src/assets/world/port-vice-checkpoint.png
@@ -42,6 +49,7 @@ export type MissionPhase =
   | "departure"
   | "approach"
   | "scan"
+  | "bluff"
   | "gate"
   | "yard"
   | "delivery"
@@ -61,8 +69,14 @@ interface MissionProps {
   anchor?: CoverAnchor;
   /** Initial phase (e.g. for resume). */
   initialPhase?: MissionPhase;
+  /** Stable run identity used to select bluff questions. */
+  missionRunId?: string;
+  /** Persisted bluff checks from the mission lifecycle. */
+  checkpointBluff?: CheckpointBluffState;
+  /** Saves every bluff response without changing the frozen disguise. */
+  onBluffStateChange?: (state: CheckpointBluffState) => void;
   /** Fired once when the gate outcome is determined (App pays heat). */
-  onCheckpoint: (branch: CheckpointBranch) => void;
+  onCheckpoint: (branch: CheckpointBranch, bluffState?: CheckpointBluffState) => void;
   /** Fired once on delivery (App pays REP). */
   onComplete: () => void;
   /** RETURN TO 305. */
@@ -100,15 +114,32 @@ export default function Mission({
   anchor: _anchor = DEFAULT_COVER_ANCHOR,
   initialPhase,
   onCheckpoint,
+  onBluffStateChange,
   onComplete,
   onExit,
+  missionRunId,
+  checkpointBluff: persistedBluff,
 }: MissionProps) {
   const checkpointVerdict = snapshot.metrics
     ? classifyCreativeCheckpoint(snapshot.metrics)
     : classifyCheckpoint(snapshot.analysis);
   const verdict = checkpointVerdict.branch;
+  const runIdentity = missionRunId ?? `legacy-${snapshot.coverLockedAt}`;
+  const fallbackAttention = snapshot.metrics?.cityAttention ?? (snapshot.score >= 45 ? "BALANCED" : "LOW");
+  const initialBluff = persistedBluff ?? createCheckpointBluffState(
+    runIdentity,
+    snapshot.metrics?.coverReadiness ?? snapshot.score,
+    fallbackAttention,
+  );
   const [phase, setPhase] = useState<MissionPhase>(() => initialPhase ?? "departure");
+  const [bluffState, setBluffState] = useState<CheckpointBluffState>(initialBluff);
+  const [resolvedBranch, setResolvedBranch] = useState<CheckpointBranch | null>(() =>
+    initialBluff.outcome ? branchForBluffOutcome(initialBluff.outcome) : null,
+  );
   const [vehicle, setVehicle] = useState<VehicleState>(() => {
+    if (initialPhase === "bluff") {
+      return { dist: 82, lane: 0, speed: 0 };
+    }
     if (initialPhase === "yard" || initialPhase === "delivery") {
       return { dist: 94, lane: 0, speed: 0 };
     }
@@ -117,21 +148,25 @@ export default function Mission({
   const [scanBeat, setScanBeat] = useState(0);
   const [gateOpen, setGateOpen] = useState(() => initialPhase === "yard" || initialPhase === "delivery" || initialPhase === "result");
 
-  const isClean = verdict === "clean";
-  const isSecondary = verdict === "secondary" || (verdict as string) === "questionable";
-  const isManual = verdict === "manual" || (verdict as string) === "weak";
+  const gateVerdict = resolvedBranch ?? verdict;
+  const isClean = gateVerdict === "clean";
+  const isSecondary = gateVerdict === "secondary" || (gateVerdict as string) === "questionable";
+  const isManual = gateVerdict === "manual" || (gateVerdict as string) === "weak";
 
   const vehicleRef = useRef(vehicle);
   const phaseRef = useRef(phase);
   const checkpointFired = useRef(false);
   const completeFired = useRef(false);
   const stopTimer = useRef(0);
+  const bluffOutcomeTimer = useRef(0);
+  const bluffStateRef = useRef(bluffState);
   const keysRef = useRef<Set<string>>(new Set());
   // Mirror latest render values for event-loop consumers (never read
   // refs during render — synced here, post-commit).
   useEffect(() => {
     vehicleRef.current = vehicle;
     phaseRef.current = phase;
+    bluffStateRef.current = bluffState;
   });
 
   const endDist = gateOpen || phase === "yard" || phase === "gate" ? VEHICLE_TUNING.yardEnd : VEHICLE_TUNING.barrierDist;
@@ -241,16 +276,37 @@ export default function Mission({
     return () => window.removeEventListener("keydown", onDeliveryKey);
   }, [phase, onComplete]);
 
-  // Approach → scan: correctly stopped inside the stop zone.
+  // Approach → bluff: correctly stopped inside the checkpoint stop zone.
   useEffect(() => {
     if (phase !== "approach") return;
     if (inStopZone(vehicle.dist) && isStopped(vehicle.speed)) {
-      stopTimer.current = window.setTimeout(() => setPhase("scan"), STOP_HOLD_MS);
+      stopTimer.current = window.setTimeout(() => {
+        const active = activateCheckpointBluff(bluffStateRef.current);
+        bluffStateRef.current = active;
+        setBluffState(active);
+        onBluffStateChange?.(active);
+        setPhase("bluff");
+      }, STOP_HOLD_MS);
     } else {
       window.clearTimeout(stopTimer.current);
     }
     return () => window.clearTimeout(stopTimer.current);
-  }, [phase, vehicle.dist, vehicle.speed]);
+  }, [phase, vehicle.dist, vehicle.speed, onBluffStateChange]);
+
+  // Resolve the cinematic result into the existing checkpoint branch, then
+  // hand the player back to the existing gate/recovery flow.
+  useEffect(() => {
+    if (phase !== "bluff" || bluffState.status !== "resolved" || !bluffState.outcome) return;
+    if (!checkpointFired.current) {
+      checkpointFired.current = true;
+      const branch = branchForBluffOutcome(bluffState.outcome);
+      emitGameSound(branch === "manual" ? "alert-tone" : "checkpoint-beep");
+      onCheckpoint(branch, bluffState);
+    }
+    window.clearTimeout(bluffOutcomeTimer.current);
+    bluffOutcomeTimer.current = window.setTimeout(() => setPhase("gate"), bluffState.outcome === "busted" ? 2400 : 1900);
+    return () => window.clearTimeout(bluffOutcomeTimer.current);
+  }, [phase, bluffState.status, bluffState.outcome, bluffState, onCheckpoint]);
 
   // Scan beats → gate outcome (fires the checkpoint callback exactly once).
   // The final beat stays readable briefly before the transition fires.
@@ -265,12 +321,12 @@ export default function Mission({
       emitGameSound("checkpoint-beep");
       if (!checkpointFired.current) {
         checkpointFired.current = true;
-        onCheckpoint(verdict);
+        onCheckpoint(verdict, bluffState);
       }
       setPhase("gate");
     }, 500);
     return () => window.clearTimeout(t);
-  }, [phase, scanBeat, onCheckpoint, verdict]);
+  }, [phase, scanBeat, onCheckpoint, verdict, bluffState]);
 
   // Gate outcome timing per branch.
   useEffect(() => {
@@ -319,6 +375,21 @@ export default function Mission({
     return undefined;
   }, [phase, vehicle.dist, vehicle.speed]);
 
+  const handleBluffStateChange = (next: CheckpointBluffState) => {
+    setBluffState(next);
+    onBluffStateChange?.(next);
+  };
+
+  const handleBluffResolve = (branch: CheckpointBranch, resolved: CheckpointBluffState) => {
+    setResolvedBranch(branch);
+    setBluffState(resolved);
+    if (!checkpointFired.current) {
+      checkpointFired.current = true;
+      emitGameSound(branch === "manual" ? "alert-tone" : "checkpoint-beep");
+      onCheckpoint(branch, resolved);
+    }
+  };
+
   const objective =
     phase === "departure"
       ? "JOB//01 — ROLLING OUT"
@@ -326,7 +397,9 @@ export default function Mission({
         ? "JOB//01 — REACH THE SERVICE CHECKPOINT"
         : phase === "scan"
           ? "JOB//01 — HOLD FOR SCAN"
-          : phase === "gate"
+          : phase === "bluff"
+            ? "JOB//01 — SECURITY CHECK // BLUFF THE GUARD"
+            : phase === "gate"
             ? isManual && !gateOpen
               ? "JOB//01 — SERVICE LANE: REVERSE TO SECONDARY MARKER"
               : "JOB//01 — AWAITING GATE"
@@ -460,6 +533,18 @@ export default function Mission({
         )}
       </WorldScene>
 
+      {phase === "bluff" && (
+        <CheckpointBluff
+          snapshot={snapshot}
+          livery={livery}
+          state={bluffState}
+          heat={heat}
+          onStateChange={handleBluffStateChange}
+          onResolve={handleBluffResolve}
+          onAbort={onExit}
+        />
+      )}
+
       {phase === "gate" && (
         <div className="cm-world-focus" role="status">
           <p className="cm-world-focus-label">
@@ -484,11 +569,11 @@ export default function Mission({
           <dl className="cm-workorder-rows">
             <div>
               <dt>Checkpoint</dt>
-              <dd>{branchLabel(verdict)}</dd>
+              <dd>{branchLabel(gateVerdict)}</dd>
             </div>
             <div>
               <dt>Heat gain</dt>
-              <dd>+{CHECKPOINT_HEAT[verdict]}</dd>
+              <dd>+{CHECKPOINT_HEAT[gateVerdict]}</dd>
             </div>
             <div>
               <dt>Payment</dt>

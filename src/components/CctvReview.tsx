@@ -21,6 +21,8 @@ export default function CctvReview({
   const [inReveal, setInReveal] = useState(false);
   const [firstBurn, setFirstBurn] = useState(false);
   const current = receipts[index];
+  const cameraLabels = ["CAM 04 // VEHICLE", "CAM 11 // GATE", "CAM 19 // DOCK"] as const;
+  const currentCameraLabel = cameraLabels[index] ?? cameraLabels[0];
 
   const handleNext = () => {
     if (index < receipts.length - 1) {
@@ -61,7 +63,7 @@ export default function CctvReview({
       <div className="cm-cctv-shell">
         <header className="cm-cctv-header">
           <div>
-            <p className="cm-kicker">Vice County Watch // Visual Trace</p>
+            <p className="cm-kicker">COVER//01 // evidence correlation</p>
             <h2 className="cm-cctv-title">Three Matches. One Visual Signature.</h2>
           </div>
           <button
@@ -88,7 +90,7 @@ export default function CctvReview({
                   <div className="cm-cctv-rec-badge">
                     <span className="cm-rec-dot" /> REC [LIVE FEED]
                   </div>
-                  <div className="cm-cctv-id-tag">{current.id}</div>
+                  <div className="cm-cctv-id-tag">{currentCameraLabel}</div>
                   <div className="cm-cctv-time-tag">{current.timestamp}</div>
                 </div>
 
@@ -114,9 +116,9 @@ export default function CctvReview({
                     type="button"
                     className={`cm-cctv-pip ${i === index ? "is-active" : i <= maxViewed ? "is-seen" : ""}`}
                     onClick={() => setIndex(i)}
-                    aria-label={`Go to ${r.id}`}
+                    aria-label={`Go to ${cameraLabels[i]}`}
                   >
-                    {r.id}
+                    {cameraLabels[i]}
                   </button>
                 ))}
               </div>
@@ -182,10 +184,10 @@ export default function CctvReview({
           <div className="cm-cctv-reveal">
             <div className="cm-reveal-content">
               <div className="cm-reveal-badge">
-                <span className="cm-reveal-dot" /> EXPOSURE CONFIRMED
+                <span className="cm-reveal-dot" /> MATCH FOUND // EXPOSURE CONFIRMED
               </div>
               <h3 className="cm-reveal-heading">
-                COVER//01 <span className="accent-red">STATUS // BURNED</span>
+                COVER//01 <span className="accent-red">— BURNED</span>
               </h3>
 
               <div className="cm-reveal-quote">

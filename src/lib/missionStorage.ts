@@ -1,6 +1,8 @@
 import { getCoverAsset, putCoverAsset, type CoverAssetRef } from "./coverAssetStore";
 import type { CoverAnalysis } from "./coverAnalysis";
+import type { CreativeMetrics } from "./creativeMetrics";
 import type { CheckpointBranch, MissionState } from "../world/mission";
+import { validateCheckpointBluffState, type CheckpointBluffState } from "../world/checkpointBluff";
 import { createDisguisePackage, type DisguisePackage } from "./disguisePackage";
 import type { VehicleLivery } from "./vehicleLivery";
 // One dedicated localStorage key — never merged into mark, progress, job,
@@ -21,6 +23,17 @@ function isPlausibleAnalysis(value: unknown): value is CoverAnalysis {
     Array.isArray(v.checks) &&
     typeof v.width === "number" &&
     typeof v.height === "number"
+  );
+}
+
+function isPlausibleMetrics(value: unknown): value is CreativeMetrics {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v.schemaVersion === 1 &&
+    typeof v.coverReadiness === "number" &&
+    (v.cityAttention === "LOW" || v.cityAttention === "BALANCED" || v.cityAttention === "HIGH") &&
+    typeof v.reaction === "string"
   );
 }
 
@@ -50,6 +63,10 @@ function sanitize(raw: unknown): MissionState | null {
     checkpointBranch = normalizeBranch(v.checkpoint);
     if (!checkpointBranch) return null;
   }
+  const checkpointBluff = validateCheckpointBluffState(v.checkpointBluff)
+    ? (v.checkpointBluff as CheckpointBluffState)
+    : undefined;
+  const metrics = isPlausibleMetrics(snapshot.metrics) ? snapshot.metrics : undefined;
   return {
     started: true,
     snapshot: {
@@ -57,6 +74,7 @@ function sanitize(raw: unknown): MissionState | null {
       coverAssetRef: snapshot.coverAssetRef as CoverAssetRef | undefined,
       coverLockedAt: snapshot.coverLockedAt,
       analysis: snapshot.analysis,
+      metrics,
       score: snapshot.score,
       startedAt: typeof snapshot.startedAt === "string" ? snapshot.startedAt : undefined,
       disguisePackage: (snapshot.disguisePackage as DisguisePackage) ?? undefined,
@@ -64,6 +82,7 @@ function sanitize(raw: unknown): MissionState | null {
     },
     checkpoint: checkpointBranch,
     checkpointHeatPaid: v.checkpointHeatPaid === true,
+    ...(checkpointBluff ? { checkpointBluff } : {}),
     completed: v.completed === true,
     repPaid: v.repPaid === true,
     ...(typeof v.missionRunId === "string" && v.missionRunId ? { missionRunId: v.missionRunId } : {}),

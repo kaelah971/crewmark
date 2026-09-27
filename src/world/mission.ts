@@ -3,7 +3,11 @@ import type { CoverAnalysis, CoverCheckStatus } from "../lib/coverAnalysis";
 import { createDisguisePackage, type DisguisePackage } from "../lib/disguisePackage";
 import type { CoverRecord } from "../lib/coverStorage";
 import type { VehicleLivery } from "../lib/vehicleLivery";
-import type { CreativeMetrics } from "../lib/creativeMetrics";
+import type { CreativeMetrics, CityAttention } from "../lib/creativeMetrics";
+import {
+  createCheckpointBluffState,
+  type CheckpointBluffState,
+} from "./checkpointBluff";
 /** The checkpoint classifies the FROZEN cover snapshot taken at START JOB,
  * never live pixels: re-editing COVER//01 later cannot rewrite history.
  * Same analysis always returns the same branch, heat, and reward.
@@ -140,6 +144,8 @@ export interface MissionState {
   readonly snapshot: MissionSnapshot | null;
   readonly checkpoint: CheckpointBranch | null;
   readonly checkpointHeatPaid: boolean;
+  /** Persisted bluff checks keep the same questions, score, and responses on resume. */
+  readonly checkpointBluff?: CheckpointBluffState;
   readonly completed: boolean;
   readonly completedAt?: string;
   readonly repPaid: boolean;
@@ -152,6 +158,7 @@ export const EMPTY_MISSION: MissionState = {
   snapshot: null,
   checkpoint: null,
   checkpointHeatPaid: false,
+  checkpointBluff: undefined,
   completed: false,
   repPaid: false,
   completionRewardPaid: false,
@@ -160,6 +167,10 @@ export const EMPTY_MISSION: MissionState = {
 export function createMissionRunId(): string {
   return `mission-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
+function fallbackAttention(score: number): CityAttention {
+  return score >= 45 ? "BALANCED" : "LOW";
+}
+
 export function startMissionState(
   cover: CoverRecord,
   pkg?: DisguisePackage,
@@ -182,6 +193,7 @@ export function startMissionState(
         ...cover.analysis,
         checks: cover.analysis.checks.map((c) => ({ ...c })),
       },
+      metrics: cover.metrics,
       score: cover.analysis.score,
       startedAt: new Date().toISOString(),
       disguisePackage: disguise ?? undefined,
@@ -189,6 +201,11 @@ export function startMissionState(
     },
     checkpoint: null,
     checkpointHeatPaid: false,
+    checkpointBluff: createCheckpointBluffState(
+      missionRunId,
+      cover.metrics?.coverReadiness ?? cover.analysis.score,
+      cover.metrics?.cityAttention ?? fallbackAttention(cover.analysis.score),
+    ),
     completed: false,
     repPaid: false,
     completionRewardPaid: false,
@@ -241,9 +258,10 @@ export const DEFAULT_COVER_ANCHOR: CoverAnchor = {
 };
 export function resumeMissionPhase(
   state: MissionState | null,
-): "approach" | "yard" | "result" | null {
+): "approach" | "bluff" | "yard" | "result" | null {
   if (!state || !state.started) return null;
   if (state.completed) return "result";
   if (state.checkpoint !== null) return "yard";
+  if (state.checkpointBluff && state.checkpointBluff.status !== "ready") return "bluff";
   return "approach";
 }

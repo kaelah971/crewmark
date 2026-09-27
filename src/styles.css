@@ -2919,6 +2919,605 @@ body {
   z-index: 2;
 }
 
+/* ---------- P10 checkpoint bluff ---------- */
+
+.cm-bluff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 7, 9, 0.76);
+  backdrop-filter: blur(7px);
+}
+
+.cm-bluff-dialog {
+  width: min(1080px, 100%);
+  max-height: min(900px, 94vh);
+  overflow-y: auto;
+  border: 1px solid var(--cm-line);
+  border-left: 3px solid var(--cm-lime);
+  background: #0d0e0f;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.88);
+  color: var(--cm-paper);
+  outline: none;
+}
+
+.cm-bluff-dialog.is-secondary {
+  border-left-color: #ffb13e;
+}
+
+.cm-bluff-dialog.is-busted {
+  border-left-color: var(--cm-red);
+  animation: cm-bluff-red-pulse 700ms ease-out 1;
+}
+
+.cm-bluff-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--cm-line);
+}
+
+.cm-bluff-header .cm-kicker {
+  margin-bottom: 6px;
+  color: var(--cm-blue);
+}
+
+.cm-bluff-title {
+  margin: 0;
+  font-family: var(--cm-display);
+  font-size: clamp(24px, 4vw, 42px);
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.cm-bluff-abort {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.cm-bluff-identity {
+  display: grid;
+  grid-template-columns: minmax(250px, 1.5fr) 90px minmax(190px, 1fr) 150px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 22px;
+  background: rgba(23, 23, 22, 0.72);
+  border-bottom: 1px solid var(--cm-line);
+}
+
+.cm-bluff-belief-block,
+.cm-bluff-heat,
+.cm-bluff-company {
+  display: grid;
+  gap: 7px;
+}
+
+.cm-bluff-meter-label,
+.cm-bluff-heat span,
+.cm-bluff-company span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: var(--cm-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--cm-grey);
+}
+
+.cm-bluff-meter-label strong {
+  color: var(--cm-lime);
+  font-size: 14px;
+}
+
+.cm-bluff-meter-label small {
+  color: var(--cm-grey);
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.cm-bluff-belief-meter,
+.cm-bluff-countdown-bar {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--cm-line);
+  background: #060709;
+}
+
+.cm-bluff-belief-meter span,
+.cm-bluff-countdown-bar i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: var(--cm-lime);
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.cm-bluff-heat strong,
+.cm-bluff-company strong {
+  overflow: hidden;
+  color: var(--cm-paper);
+  font-family: var(--cm-display);
+  font-size: 18px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-bluff-company strong {
+  color: var(--cm-lime);
+  font-family: var(--cm-mono);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.cm-bluff-vehicle-thumb {
+  position: relative;
+  height: 64px;
+  overflow: hidden;
+  border: 1px solid var(--cm-line);
+  background: radial-gradient(circle at 50% 42%, #272c31 0%, #0b0c0e 76%);
+}
+
+.cm-bluff-thumb-livery {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cm-bluff-thumb-livery .cm-vehicle-3d-img {
+  filter: brightness(1.2) saturate(1.05) contrast(1.06) drop-shadow(0 5px 9px rgba(0, 0, 0, 0.8));
+}
+
+.cm-bluff-check,
+.cm-bluff-final {
+  padding: 22px;
+}
+
+.cm-bluff-question-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.cm-bluff-step,
+.cm-bluff-guard,
+.cm-bluff-instruction,
+.cm-bluff-final-heading span,
+.cm-bluff-outcome-kicker {
+  margin: 0;
+  font-family: var(--cm-mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cm-grey);
+}
+
+.cm-bluff-guard {
+  margin-top: 12px;
+  color: var(--cm-blue);
+}
+
+.cm-bluff-question-row h3 {
+  margin: 5px 0 0;
+  font-family: var(--cm-display);
+  font-size: clamp(23px, 4vw, 36px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.cm-bluff-countdown {
+  flex: 0 0 102px;
+  display: grid;
+  gap: 6px;
+  text-align: right;
+}
+
+.cm-bluff-countdown > span {
+  color: var(--cm-lime);
+  font-family: var(--cm-display);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.cm-bluff-countdown-bar i {
+  background: var(--cm-blue);
+  transition: transform 100ms linear;
+}
+
+.cm-bluff-instruction {
+  margin-top: 24px;
+  color: var(--cm-paper);
+}
+
+.cm-bluff-feedback {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 12px 14px;
+  border: 1px solid var(--cm-lime);
+  background: rgba(216, 255, 62, 0.08);
+  animation: cm-bluff-feedback 650ms ease-out 1;
+}
+
+.cm-bluff-feedback strong,
+.cm-bluff-feedback span {
+  font-family: var(--cm-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.cm-bluff-feedback span {
+  color: var(--cm-grey);
+  text-align: right;
+}
+
+.cm-bluff-feedback.is-plausible {
+  border-color: #ffb13e;
+  background: rgba(255, 177, 62, 0.09);
+}
+
+.cm-bluff-feedback.is-plausible strong,
+.cm-bluff-feedback.is-plausible span {
+  color: #ffb13e;
+}
+
+.cm-bluff-feedback.is-wrong,
+.cm-bluff-feedback.is-timeout {
+  border-color: var(--cm-red);
+  background: rgba(255, 67, 56, 0.1);
+}
+
+.cm-bluff-feedback.is-wrong strong,
+.cm-bluff-feedback.is-wrong span,
+.cm-bluff-feedback.is-timeout strong,
+.cm-bluff-feedback.is-timeout span {
+  color: var(--cm-red);
+}
+
+.cm-bluff-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.cm-bluff-evidence-card {
+  min-width: 0;
+  padding: 0 0 8px;
+  border: 1px solid var(--cm-line);
+  background: #141514;
+  color: var(--cm-paper);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.cm-bluff-evidence-card:hover,
+.cm-bluff-evidence-card:focus-visible {
+  border-color: var(--cm-blue);
+  background: #1a1c1d;
+  outline: none;
+  transform: translateY(-2px);
+}
+
+.cm-bluff-evidence-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--cm-lime);
+}
+
+.cm-bluff-evidence-card:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.cm-bluff-evidence-card.is-presented {
+  border-color: var(--cm-lime);
+  animation: cm-bluff-card-flash 650ms ease-out 1;
+}
+
+.cm-bluff-evidence-label {
+  display: block;
+  padding: 9px 10px 7px;
+  color: var(--cm-lime);
+  font-family: var(--cm-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.cm-bluff-evidence-card .cm-bluff-evidence-surface,
+.cm-bluff-scan-surface .cm-bluff-mini-surface {
+  height: 112px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--cm-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.cm-bluff-evidence-card .cm-surface-canvas-area,
+.cm-bluff-scan-surface .cm-surface-canvas-area {
+  height: 100% !important;
+  padding-top: 0 !important;
+}
+
+.cm-bluff-evidence-card .cm-surface-mockup > :last-child,
+.cm-bluff-scan-surface .cm-surface-mockup > :last-child {
+  display: none;
+}
+
+.cm-bluff-final-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cm-bluff-final-heading h3 {
+  margin: 4px 0 0;
+  font-family: var(--cm-display);
+  font-size: clamp(25px, 4vw, 40px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.cm-bluff-final-heading span {
+  color: var(--cm-blue);
+  white-space: nowrap;
+}
+
+.cm-bluff-scan-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 22px;
+  padding: 10px;
+  border: 1px solid var(--cm-line);
+  background: #080a0b;
+  overflow: hidden;
+}
+
+.cm-bluff-scan-surface {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.cm-bluff-scan-surface > span {
+  color: var(--cm-grey);
+  font-family: var(--cm-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-align: center;
+}
+
+.cm-bluff-mini-surface {
+  height: 86px !important;
+}
+
+.cm-bluff-scan-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--cm-lime);
+  box-shadow: 0 0 18px 5px rgba(216, 255, 62, 0.55);
+  animation: cm-bluff-scan 1200ms cubic-bezier(0.23, 1, 0.32, 1) 1;
+}
+
+.cm-bluff-outcome {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--cm-lime);
+  background: rgba(216, 255, 62, 0.06);
+  text-align: center;
+}
+
+.cm-bluff-outcome-kicker {
+  color: var(--cm-blue);
+}
+
+.cm-bluff-outcome h3 {
+  margin: 8px 0 5px;
+  font-family: var(--cm-display);
+  font-size: clamp(27px, 5vw, 48px);
+  line-height: 0.96;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  color: var(--cm-lime);
+}
+
+.cm-bluff-outcome p {
+  margin: 0;
+  font-family: var(--cm-mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--cm-paper);
+}
+
+.cm-bluff-consequences {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cm-line);
+  color: var(--cm-grey);
+  font-family: var(--cm-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.cm-bluff-consequences strong {
+  color: var(--cm-lime);
+}
+
+.cm-bluff-outcome-detail {
+  display: block;
+  margin-top: 15px;
+  color: var(--cm-lime);
+  font-family: var(--cm-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.cm-bluff-dialog.is-secondary .cm-bluff-outcome {
+  border-color: #ffb13e;
+  background: rgba(255, 177, 62, 0.06);
+}
+
+.cm-bluff-dialog.is-secondary .cm-bluff-outcome h3,
+.cm-bluff-dialog.is-secondary .cm-bluff-outcome-detail {
+  color: #ffb13e;
+}
+
+.cm-bluff-dialog.is-busted .cm-bluff-outcome {
+  border-color: var(--cm-red);
+  background: rgba(255, 67, 56, 0.1);
+}
+
+.cm-bluff-dialog.is-busted .cm-bluff-outcome h3,
+.cm-bluff-dialog.is-busted .cm-bluff-outcome-detail {
+  color: var(--cm-red);
+}
+
+@keyframes cm-bluff-card-flash {
+  0%, 100% { box-shadow: inset 0 0 0 rgba(216, 255, 62, 0); }
+  35% { box-shadow: inset 0 0 28px rgba(216, 255, 62, 0.24); }
+}
+
+@keyframes cm-bluff-feedback {
+  from { opacity: 0.45; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cm-bluff-red-pulse {
+  0%, 100% { box-shadow: 0 24px 80px rgba(0, 0, 0, 0.88); }
+  35% { box-shadow: 0 0 38px rgba(255, 67, 56, 0.42), 0 24px 80px rgba(0, 0, 0, 0.88); }
+}
+
+@keyframes cm-bluff-scan {
+  from { transform: translateX(-4px); }
+  to { transform: translateX(calc(100vw - 80px)); }
+}
+
+@media (max-width: 760px) {
+  .cm-bluff-overlay {
+    align-items: flex-start;
+    padding: 10px;
+  }
+
+  .cm-bluff-dialog {
+    max-height: calc(100vh - 20px);
+  }
+
+  .cm-bluff-header,
+  .cm-bluff-check,
+  .cm-bluff-final {
+    padding: 14px;
+  }
+
+  .cm-bluff-header {
+    gap: 10px;
+  }
+
+  .cm-bluff-abort {
+    max-width: 130px;
+    white-space: normal;
+  }
+
+  .cm-bluff-identity {
+    grid-template-columns: 1fr 72px;
+    padding: 12px 14px;
+  }
+
+  .cm-bluff-belief-block,
+  .cm-bluff-company {
+    grid-column: 1 / -1;
+  }
+
+  .cm-bluff-heat {
+    grid-column: 1;
+  }
+
+  .cm-bluff-vehicle-thumb {
+    grid-column: 2;
+    grid-row: 3;
+    height: 48px;
+  }
+
+  .cm-bluff-question-row,
+  .cm-bluff-final-heading {
+    display: grid;
+    align-items: start;
+  }
+
+  .cm-bluff-countdown {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .cm-bluff-countdown-bar {
+    flex: 1;
+  }
+
+  .cm-bluff-evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cm-bluff-evidence-card .cm-bluff-evidence-surface {
+    height: 92px !important;
+  }
+
+  .cm-bluff-scan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cm-bluff-feedback {
+    display: grid;
+    gap: 6px;
+  }
+
+  .cm-bluff-feedback span {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-bluff-dialog,
+  .cm-bluff-feedback,
+  .cm-bluff-evidence-card,
+  .cm-bluff-scan-line,
+  .cm-bluff-belief-meter span,
+  .cm-bluff-countdown-bar i {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* ---------- P3.5A-R.4 CCTV surveillance review ---------- */
 
 .cm-cctv-modal {
