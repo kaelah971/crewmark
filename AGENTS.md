@@ -1,118 +1,365 @@
-# CRITICAL RULES - MUST FOLLOW
+# AGENTS.md
 
-## RESPONSES
+# OPERATING MODE
 
-- Keep responses concise and to the point unless the user asks otherwise.
-- Report milestone result, important decisions, verification, blockers, and anything requiring user action.
+Optimize for FAST, CORRECT SHIPPING.
 
-## SOURCE OF TRUTH
+Default to direct implementation by the primary agent.
 
-- The repository is the implementation source of truth.
-- Inspect relevant current files before planning or editing.
-- Preserve existing working behavior unless the current milestone explicitly changes it.
-- Do not broadly refactor during the deadline sprint.
-- Work one milestone at a time.
-- Never jump ahead to the next milestone because it appears obvious.
+Do not create process, research, planning, or sub-agent overhead unless it materially improves correctness or reduces total completion time.
 
-## PLANNING MODE
+The goal is not maximum orchestration.
+The goal is the shortest reliable path from request → working verified implementation.
 
-- Inspect the repository, current milestone, previous milestone output, existing architecture, tests, and relevant specifications before asking questions.
-- Resolve uncertainty using repository truth, tests, documentation, scout-worker research, and architect analysis where possible.
-- Ask the user only when a genuine unresolved product decision, credential requirement, live mutation, destructive action, or other human judgment is required.
-- Never assume design, tech stack, interfaces, or features when they can be determined from the project.
-- Use scout-worker for focused reconnaissance.
-- Use architect for consequential changes involving provider orchestration, persistence, schema, payments, wallet flow, state transitions, reconciliation, or shared contracts.
-- For substantial plans, define dependencies, parallelizable work, acceptance criteria, verification, and human approval gates before implementation.
+---
 
-## CHANGE / EDIT MODE
+# CRITICAL RULES
 
-- For substantial implementation, delegate independent work to the appropriate specialist agents.
-- Act primarily as coordinator/integrator when meaningful parallel work exists.
-- Keep dependent or overlapping work sequential.
-- Freeze shared interfaces and contracts before parallel implementation.
-- Do not let sibling agents concurrently own the same implementation surface unless explicitly coordinated.
-- Preserve unrelated work.
-- Do not expand scope beyond the current milestone.
+- Keep the repository recoverable.
+- Preserve existing working behavior unless the task explicitly changes it.
+- Never overwrite or discard unrelated user changes.
+- Never invent repository state; inspect before making assumptions.
+- Add meaningful durable project rules to AGENTS.md only when they are likely to matter again.
+- Clean temporary files, debug artifacts, and build clutter created by the task.
+- Never expose or commit secrets, API keys, .env files, credentials, or private tokens.
+- Do not deploy, publish, or make destructive remote changes unless explicitly requested.
+- Prefer local commits for recoverability.
+- Do not automatically push every checkpoint unless the user explicitly asks for auto-push.
 
-Use:
-- scout-worker for reconnaissance
-- architect for consequential architecture/contracts
-- builder for ordinary bounded implementation
-- ui-builder for frontend/UI work
-- critical-builder for payments, wallet, persistence, idempotency, migrations, provider mutations, settlement, reconciliation, security-sensitive state
-- verifier for independent final verification
+---
 
-Use the cheapest capable specialist for the task.
-Use stronger reasoning models where reasoning has high leverage.
-Do not use premium reasoning merely because a task contains code.
+# RESPONSE STYLE
 
-## SAFETY BOUNDARIES
+- Keep responses concise and execution-focused.
+- Do not narrate every internal step.
+- Report:
+  - what changed
+  - important decisions
+  - verification results
+  - blockers or remaining risks
+- Do not claim something works unless it was actually verified.
 
-Agents may autonomously:
+---
+
+# DEFAULT WORKFLOW
+
+For normal feature work and bug fixes:
+
+1. Inspect only the relevant code.
+2. Identify the smallest correct change.
+3. Implement directly.
+4. Run targeted verification.
+5. Repair failures.
+6. Run final required quality gates.
+7. Commit the finished checkpoint when appropriate.
+8. Report results.
+
+Do not create a large plan for straightforward work.
+
+Do not perform repeated repository-wide audits unless necessary.
+
+---
+
+# CLARIFYING QUESTIONS
+
+Do NOT automatically ask clarifying questions.
+
+If the user's intent is sufficiently clear:
+- make reasonable repository-grounded assumptions
+- implement
+- report the assumptions only if they materially matter
+
+Ask a question only when:
+- two plausible interpretations would produce meaningfully different products
+- required credentials/assets/information are missing
+- an irreversible/destructive action requires confirmation
+- proceeding would likely waste substantial work
+
+Do not block implementation for minor ambiguity.
+
+---
+
+# PLANNING
+
+Use lightweight planning proportional to the task.
+
+Small fix:
 - inspect
-- research
-- build
-- mock
-- test
-- validate
-- construct requests
-- implement reconciliation
-- reach the pre-mutation gate
+- fix
+- verify
 
-Never:
-- print or expose secrets
-- print full sensitive bank details
-- print credential-bearing URLs
-- fake provider success
-- blindly retry an unknown provider mutation
-- invent refunds
-- weaken validation to make tests pass
+Medium feature:
+- inspect dependencies
+- define a short implementation approach
+- implement
 
-Persist state before irreversible multi-provider orchestration.
+Large architectural change:
+- inspect
+- freeze important contracts/invariants
+- break into a small number of implementation phases
+- then build
 
-## DATABASE SCHEMA CHANGES
+Do not produce planning documents unless requested.
 
-- Follow the repository's existing Drizzle/Supabase architecture.
-- When a Drizzle-managed schema changes, use the project's established migration generation workflow.
-- Inspect generated migrations.
-- NEVER run drizzle push.
-- Run migrations only against the intended approved development/test environment.
-- Never perform destructive or production database mutation without explicit user approval.
-- Preserve existing ownership, idempotency, uniqueness, and integrity constraints.
+---
 
-## TESTING
+# SUB-AGENTS
 
-- Never assume changes work.
-- Use the project's existing tests and validation tools.
-- Run focused tests during implementation.
-- Before closing a substantial milestone, run relevant regression tests plus appropriate typecheck, lint, build, and project-specific checks.
-- Financial/provider state logic must test duplicate, retry, timeout, unknown-state, restart/reconciliation, and partial-failure behavior where relevant.
-- If no dedicated testing framework exists, use the closest deterministic verification available and clearly report the gap.
-- Do not interrupt the user merely to ask whether testing should be skipped unless the missing verification creates a genuine safety or correctness blocker.
+Sub-agents are OPTIONAL, not the default.
 
-## UI DESIGN
+The primary agent should implement work directly whenever practical.
 
-- Follow/reference the existing design system when creating or reviewing components or pages.
-- Design System: @DESIGN.md
-- Reuse existing components and patterns before introducing new primitives.
-- Preserve mobile behavior.
-- Do not redesign unrelated surfaces during milestone work.
+Use a sub-agent only when it will likely REDUCE total completion time.
 
-## MILESTONE EXECUTION
+Good reasons:
+- two or more genuinely independent tasks can run in parallel
+- specialized research is required
+- an unfamiliar subsystem needs focused reconnaissance
+- an independent final review is valuable for a high-risk change
+- a large task has clearly separated work with no overlapping files/contracts
 
-For every milestone:
+Do NOT use sub-agents for:
+- simple bug fixes
+- ordinary UI changes
+- one-file or few-file changes
+- straightforward refactors
+- routine tests
+- documentation
+- repository reconnaissance the primary agent can do quickly
+- reviewing every plan
+- reviewing every implementation
 
-1. Inspect current repository state.
-2. Read the current milestone requirements.
-3. Inspect the completed previous milestone.
-4. Scout relevant implementation surfaces where useful.
-5. Establish shared contracts and invariants.
-6. Split only genuinely independent work.
-7. Execute parallel implementation where safe.
-8. Integrate centrally.
-9. Run milestone-specific verification.
-10. Use verifier for independent review.
-11. Repair concrete failures.
-12. Stop at the milestone gate.
+Maximum default parallel sub-agents: 2.
 
-Do not automatically begin the next milestone.
+Use more only when the task clearly benefits.
+
+Never delegate overlapping edits to multiple agents.
+
+Do not wait for a sub-agent if the primary agent can safely continue independent work.
+
+Do not use a sub-agent merely because one is available.
+
+---
+
+# IMPLEMENTATION
+
+Prefer direct, minimal changes over broad rewrites.
+
+Before changing code:
+- locate the real source of truth
+- inspect relevant callers/consumers
+- understand existing contracts
+
+Avoid:
+- speculative abstraction
+- unnecessary new dependencies
+- duplicate state systems
+- temporary compatibility layers with no need
+- rewriting working modules to solve a localized problem
+
+For bugs:
+fix the root cause rather than hiding symptoms with CSS, timeouts, retries, or duplicated state.
+
+---
+
+# REPOSITORY RECONNAISSANCE
+
+Be efficient.
+
+Prefer:
+- targeted search
+- exact symbol lookup
+- relevant file inspection
+- git diff/status
+
+Avoid reading the entire repository before every task.
+
+Only expand reconnaissance when findings require it.
+
+---
+
+# TESTING
+
+Never assume changes work.
+
+During implementation:
+- run the smallest relevant tests first
+- use targeted tests for fast iteration
+- use browser/runtime verification for visual or interaction changes
+
+Do NOT run the full test + lint + typecheck + production build after every tiny edit.
+
+Run full project gates once the implementation is stable.
+
+Final verification should normally include the repository's available equivalents of:
+
+- targeted tests
+- full tests
+- typecheck
+- lint
+- production build
+
+Only run commands that actually exist in the project.
+
+If a project has no testing setup, verify through the best available runtime/manual mechanism instead of blocking automatically.
+
+---
+
+# VISUAL / FRONTEND WORK
+
+For visual changes, code-level PASS is not enough.
+
+Verify the actual rendered result.
+
+Check:
+- intended viewport
+- responsive behavior when relevant
+- overflow
+- alignment
+- interaction states
+- visual regressions
+
+Do not claim visual success based only on tests.
+
+If supplied reference artwork controls the design, preserve its intended visual direction.
+
+Do not replace missing realistic assets with obviously inferior CSS/SVG placeholders unless explicitly approved.
+
+---
+
+# BROWSER TESTING
+
+For interaction-heavy features:
+- verify the shortest real user flow that exercises the change
+- avoid exhaustive E2E repetition when focused verification is sufficient
+
+When fixing one bug, test:
+1. the bug itself
+2. the nearest regression risk
+3. the final happy path
+
+Do not repeatedly replay the entire product unless the change affects the entire product.
+
+---
+
+# QUALITY GATES
+
+Use two levels.
+
+## FAST ITERATION GATE
+
+During development:
+- relevant unit/component test
+- relevant typecheck if needed
+- browser/runtime check where applicable
+
+## FINAL GATE
+
+Before declaring the task complete:
+- relevant/full tests
+- typecheck
+- lint
+- production build
+- git diff --check when available
+
+Do not repeatedly run expensive final gates while still actively editing.
+
+---
+
+# GIT
+
+Use git for recoverability without slowing every edit.
+
+Before substantial work:
+- inspect git status
+- preserve unrelated changes
+
+Commit when:
+- a meaningful milestone is complete
+- tests are passing
+- the repository is in a coherent recoverable state
+
+Do NOT create a commit for every tiny edit.
+
+Do NOT automatically push every commit.
+
+Push only when:
+- the user explicitly requests it
+- the task explicitly requires remote synchronization
+- an existing project instruction explicitly requires it
+
+Never force-push unless explicitly authorized.
+
+---
+
+# DATABASE SCHEMA CHANGES
+
+When using Drizzle:
+
+- run the project's Drizzle generate command after schema changes
+- run migrations through the project's migration workflow
+- NEVER use `drizzle push` unless explicitly instructed by the user
+
+Preserve existing production data assumptions.
+
+Do not perform hosted database writes without explicit authorization.
+
+---
+
+# STATE / PERSISTENCE CHANGES
+
+When modifying persisted state:
+
+- identify the authoritative source of truth
+- avoid duplicate competing state
+- preserve backward compatibility where required
+- test refresh/reload behavior
+- test migration behavior when persisted schemas change
+- ensure partial failures cannot leave corrupted state
+
+For slot/version/history systems:
+historical records must not be mutated by newer active state.
+
+---
+
+# PERFORMANCE
+
+Prefer the solution that produces the fastest reliable user-visible result.
+
+Avoid:
+- unnecessary sequential agent work
+- repeated full builds
+- repeated repository scans
+- unnecessary dependency installation
+- speculative optimizations
+
+When two approaches are equally correct, choose the simpler/faster implementation.
+
+---
+
+# STOP CONDITIONS
+
+Stop and ask the user only when:
+
+- required information is unavailable
+- an irreversible action needs approval
+- a missing asset prevents the requested quality
+- credentials/API access are required
+- the request conflicts with an existing critical invariant and intent cannot be safely inferred
+
+Otherwise continue to completion.
+
+---
+
+# COMPLETION REPORT
+
+When finished, report concisely:
+
+- implemented
+- files/areas changed
+- verification performed
+- test/build status
+- commit hash if committed
+- any real remaining issue
+
+Do not include long implementation diaries unless requested.
