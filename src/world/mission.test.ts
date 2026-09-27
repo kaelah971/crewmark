@@ -21,13 +21,17 @@ import {
   SECONDARY_ZONE,
   STOP_ZONE,
   VEHICLE_TUNING,
+  canEnterDelivery,
   createVehicleState,
+  hasYardAccess,
   inDeliveryZone,
   inSecondaryZone,
   inStopZone,
   isStopped,
   sampleMissionRoute,
+  shouldCompleteDelivery,
   stepVehicle,
+  vehicleProgressLimit,
 } from "./vehicle";
 import type { CoverAnalysis } from "../lib/coverAnalysis";
 
@@ -500,6 +504,18 @@ describe("vehicle controller", () => {
     expect(v.speed).toBe(0);
   });
 
+  it("advances through an open gate beyond the barrier", () => {
+    let v = createVehicleState(VEHICLE_TUNING.barrierProgress);
+    const limit = vehicleProgressLimit(true, "yard");
+    for (let i = 0; i < 40; i += 1) v = stepVehicle(v, { throttle: 1, steer: 0 }, 0.05, limit);
+    expect(hasYardAccess(true, "yard")).toBe(true);
+    // A resumed resolved checkpoint restores the post-gate phase even if the
+    // transient local gate flag has not hydrated yet.
+    expect(vehicleProgressLimit(false, "yard")).toBe(VEHICLE_TUNING.routeLength);
+    expect(limit).toBe(VEHICLE_TUNING.routeLength);
+    expect(v.routeProgress).toBeGreaterThan(VEHICLE_TUNING.barrierProgress);
+  });
+
   it("keeps lateral steering inside the authored lane corridor and turns the heading", () => {
     let v = { ...createVehicleState(20), speed: 8 };
     for (let i = 0; i < 100; i += 1) v = stepVehicle(v, { throttle: 0, steer: 1 }, 0.05);
@@ -517,6 +533,14 @@ describe("vehicle controller", () => {
     expect(delivery.x).toBeGreaterThanOrEqual(sampleMissionRoute(125, -VEHICLE_TUNING.maxLateralOffset).x);
     expect(Math.hypot(checkpoint.tangentX, checkpoint.tangentZ)).toBeCloseTo(1, 5);
     expect(Number.isFinite(delivery.heading)).toBe(true);
+  });
+
+  it("only enters delivery when parked inside the delivery zone and completes once", () => {
+    expect(canEnterDelivery(110, 0)).toBe(false);
+    expect(canEnterDelivery(DELIVERY_ZONE.min, 1)).toBe(false);
+    expect(canEnterDelivery(DELIVERY_ZONE.min, 0)).toBe(true);
+    expect(shouldCompleteDelivery(false, DELIVERY_ZONE.min, 0)).toBe(true);
+    expect(shouldCompleteDelivery(true, DELIVERY_ZONE.min, 0)).toBe(false);
   });
 
   it("detects stop, secondary, and delivery zones", () => {

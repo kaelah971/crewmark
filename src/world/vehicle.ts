@@ -274,3 +274,22 @@ export function inDeliveryZone(routeProgress: number): boolean {
 export function isStopped(speed: number): boolean {
   return Math.abs(speed) < 0.35;
 }
+
+/** Post-checkpoint phases may use the full authored route. */
+export function hasYardAccess(gateOpen: boolean, phase: string): boolean {
+  return gateOpen || phase === "yard" || phase === "delivery" || phase === "result";
+}
+
+export function vehicleProgressLimit(gateOpen: boolean, phase: string): number {
+  return hasYardAccess(gateOpen, phase) ? VEHICLE_TUNING.routeLength : VEHICLE_TUNING.barrierProgress;
+}
+
+/** Delivery is only a valid phase while parked inside the green zone. */
+export function canEnterDelivery(routeProgress: number, speed: number): boolean {
+  return inDeliveryZone(routeProgress) && isStopped(speed);
+}
+
+/** Shared guard keeps button/keyboard completion idempotent. */
+export function shouldCompleteDelivery(completed: boolean, routeProgress: number, speed: number): boolean {
+  return !completed && canEnterDelivery(routeProgress, speed);
+}

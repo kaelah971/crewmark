@@ -16,12 +16,15 @@ import {
 } from "../world/mission";
 import {
   VEHICLE_TUNING,
+  canEnterDelivery,
   createVehicleState,
-  inDeliveryZone,
+  hasYardAccess,
   inSecondaryZone,
   inStopZone,
   isStopped,
+  shouldCompleteDelivery,
   stepVehicle,
+  vehicleProgressLimit,
   type VehicleState,
 } from "../world/vehicle";
 import type { VehicleLivery } from "../lib/vehicleLivery";
@@ -172,7 +175,9 @@ export default function Mission({
     bluffStateRef.current = bluffState;
   });
 
-  const endProgress = gateOpen || phase === "yard" || phase === "delivery" ? VEHICLE_TUNING.routeLength : VEHICLE_TUNING.barrierProgress;
+  const hasAccess = hasYardAccess(gateOpen, phase);
+  const endProgress = vehicleProgressLimit(gateOpen, phase);
+  const deliveryReady = canEnterDelivery(vehicle.routeProgress, vehicle.speed);
 
   // Departure cinematic → approach.
   useEffect(() => {
@@ -197,20 +202,18 @@ export default function Mission({
     return () => window.removeEventListener("keydown", onAbortKeyDown);
   }, [phase, onExit]);
 
-  // Drive loop (approach + yard + gate for manual-branch recovery).
-  // Scan/delivery/result park the vehicle.
+  // Drive loop remains mounted through delivery as a defensive recovery path:
+  // a stale/partially hydrated delivery phase must never freeze the car.
   useEffect(() => {
-    if (phase !== "approach" && phase !== "yard" && phase !== "gate") return;
+    if (phase !== "approach" && phase !== "yard" && phase !== "gate" && phase !== "delivery") return;
     let raf = 0;
     let last = performance.now();
     const completeDelivery = () => {
       const v = vehicleRef.current;
-      if (phaseRef.current === "delivery" && inDeliveryZone(v.routeProgress) && isStopped(v.speed)) {
-        if (!completeFired.current) {
-          completeFired.current = true;
-          emitGameSound("mission-complete");
-          onComplete();
-        }
+      if (phaseRef.current === "delivery" && shouldCompleteDelivery(completeFired.current, v.routeProgress, v.speed)) {
+        completeFired.current = true;
+        emitGameSound("mission-complete");
+        onComplete();
         setPhase("result");
       }
     };
@@ -257,6 +260,7 @@ export default function Mission({
       window.removeEventListener("blur", onBlur);
     };
   }, [phase, endProgress, onComplete]);
+
   // Delivery key listener: mounted only in delivery phase so keyboard E
   // completes delivery exactly like the [E] DELIVER PACKAGE button.
   useEffect(() => {
@@ -265,12 +269,10 @@ export default function Mission({
       if (isTypingTarget(e.target) || e.isComposing) return;
       if (e.key !== "e" && e.key !== "E") return;
       const v = vehicleRef.current;
-      if (inDeliveryZone(v.routeProgress) && isStopped(v.speed)) {
-        if (!completeFired.current) {
-          completeFired.current = true;
-          emitGameSound("mission-complete");
-          onComplete();
-        }
+      if (shouldCompleteDelivery(completeFired.current, v.routeProgress, v.speed)) {
+        completeFired.current = true;
+        emitGameSound("mission-complete");
+        onComplete();
         setPhase("result");
       }
     };
@@ -370,7 +372,7 @@ export default function Mission({
   // Yard → delivery prompt when parked in the delivery zone.
   useEffect(() => {
     if (phase !== "yard") return;
-    if (inDeliveryZone(vehicle.routeProgress) && isStopped(vehicle.speed)) {
+    if (canEnterDelivery(vehicle.routeProgress, vehicle.speed)) {
       const t = window.setTimeout(() => setPhase("delivery"), 800);
       return () => window.clearTimeout(t);
     }
@@ -413,7 +415,7 @@ export default function Mission({
   const prompt =
     phase === "approach" && inStopZone(vehicle.routeProgress) && !isStopped(vehicle.speed)
       ? "STOP AT SECURITY LINE"
-      : phase === "delivery"
+      : phase === "delivery" && deliveryReady
         ? "DELIVER PACKAGE"
         : null;
 
@@ -457,7 +459,7 @@ export default function Mission({
         {/* Booth stop-line marker tuned for Port Vice service lane */}
         <div className="cm-stopline" aria-hidden={true} />
         {/* Secondary inspection stop-line marker for weak/manual branch */}
-        {isManual && phase === "gate" && !gateOpen && (
+        {isManual && phase === "gate" && !hasAccess && (
           <div className="cm-secondary-marker" aria-hidden={true} />
         )}
         {/* Delivery zone marker in restricted service yard */}
@@ -486,21 +488,21 @@ export default function Mission({
         ) : null}
         {/* Booth light + barrier + camera states driven by the live branch. */}
         <div
-          className={`cm-boothlight is-${gateOpen ? "green" : isManual && phase !== "departure" && phase !== "approach" ? "red" : phase === "scan" || phase === "gate" ? "amber" : "idle"}`}
+          className={`cm-boothlight is-${hasAccess ? "green" : isManual && phase !== "departure" && phase !== "approach" ? "red" : phase === "scan" || phase === "gate" ? "amber" : "idle"}`}
           aria-hidden={true}
         />
-        <div className={`cm-barrier${gateOpen ? " is-open" : ""}`} aria-hidden={true} />
-        {phase === "delivery" && (
+        <div className={`cm-barrier${hasAccess ? " is-open" : ""}`} aria-hidden={true} />
+        {phase === "delivery" && deliveryReady && (
           <div style={{ position: "absolute", bottom: "16px", left: "50%", transform: "translateX(-50%)", zIndex: 10 }}>
             <button
               type="button"
               className="btn btn-primary"
+              disabled={!deliveryReady}
               onClick={() => {
-                if (!completeFired.current) {
-                  completeFired.current = true;
-                  emitGameSound("mission-complete");
-                  onComplete();
-                }
+                if (!shouldCompleteDelivery(completeFired.current, vehicleRef.current.routeProgress, vehicleRef.current.speed)) return;
+                completeFired.current = true;
+                emitGameSound("mission-complete");
+                onComplete();
                 setPhase("result");
               }}
             >
