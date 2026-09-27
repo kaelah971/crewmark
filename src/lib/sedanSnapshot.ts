@@ -10,6 +10,26 @@ const SNAPSHOT_CACHE = new Map<string, string>();
 
 let sharedModelPromise: Promise<THREE.Group> | null = null;
 
+function createSnapshotShadowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+
+  if (context) {
+    const gradient = context.createRadialGradient(128, 64, 8, 128, 64, 124);
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0.64)");
+    gradient.addColorStop(0.45, "rgba(1, 5, 8, 0.34)");
+    gradient.addColorStop(1, "rgba(1, 5, 8, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 function loadSharedSedanModel(): Promise<THREE.Group> {
   if (sharedModelPromise) return sharedModelPromise;
 
@@ -264,6 +284,7 @@ class OffscreenSedanRenderer {
       powerPreference: "high-performance",
       preserveDrawingBuffer: true,
     });
+    this.renderer.setClearColor(0x000000, 0);
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(1.5);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -292,9 +313,9 @@ class OffscreenSedanRenderer {
     const shadowGeo = new THREE.PlaneGeometry(5.6, 2.6);
     shadowGeo.rotateX(-Math.PI / 2);
     const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x010203,
+      map: createSnapshotShadowTexture(),
       transparent: true,
-      opacity: 0.65,
+      depthWrite: false,
     });
     const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
     shadowMesh.position.y = 0.01;
@@ -338,7 +359,7 @@ class OffscreenSedanRenderer {
     this.scene.add(car);
 
     // Position camera based on angle:
-    // "yard": Driver side (+X) view perfectly framing the side profile of the sedan
+    // "yard": Driver-side view framed for the parked bay's perspective.
     // "mission": Side-front profile driving along Port Vice road lane
     if (angle === "yard") {
       this.camera.position.set(6.2, 0.78, 0.20);

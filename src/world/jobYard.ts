@@ -2,11 +2,11 @@ import type { HotspotDef, Vec2, WalkBounds } from "./types";
 
 /**
  * Job-yard hub configuration (P3.5A-R), retuned to the dedicated plate
- * src/assets/world/yard-wide.png (1672x941):
+ * src/assets/world/yard-clean.png (1672x941):
  *
  * - office/personnel door with terminal glow: x~29%, base y~60%
  * - roll-up print-shop shutter: x~8-26%, base y~60%
- * - crew sedan three-quarter, mid-right: x~39-63%, body mid y~57%
+ * - dynamic crew sedan parking bay: x~39-63%, body mid y~57%
  * - crates right: x~74-93% (set dressing, no hotspot in this slice)
  * - exit gate/fence far right: x~82%, base y~55%
  * - walkable wet pavement band: y 60-92%

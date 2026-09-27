@@ -21,7 +21,7 @@ import {
 } from "../world/jobs";
 import { clampToBounds, nearestInRange, stepPosition } from "../world/movement";
 import type { PlayerState, Vec2 } from "../world/types";
-import yardPlate from "../assets/world/yard-wide.png";
+import yardPlate from "../assets/world/yard-clean.png";
 import playerSprite from "../assets/world/player-idle.png";
 import SurfaceMockup from "./SurfaceMockup";
 import { type SurfaceId } from "../lib/multiSurfacePreview";
@@ -405,7 +405,7 @@ export default function JobYard({
       </header>
       <WorldScene
         plateSrc={yardPlate}
-        plateAlt="Nighttime industrial yard: print shop garage, parked crew sedan, crates and exit gate under city lights"
+        plateAlt="Nighttime industrial yard: print shop garage, open parking bay, crates and exit gate under city lights"
         camera={camera}
         label="Point-and-explore 305 yard. Click hotspots or props to interact."
         screenChildren={
