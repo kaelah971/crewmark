@@ -29,7 +29,12 @@ import {
 } from "../lib/signatureComparison";
 import MultiSurfacePreview from "./MultiSurfacePreview";
 import TemplateGallery from "./TemplateGallery";
-import { loadCoverTemplateDataUrl, type CoverTemplateId } from "../lib/coverTemplates";
+import {
+  getCoverTemplate,
+  loadCoverTemplateDataUrl,
+  loadCoverTemplateEditingBaseDataUrl,
+  type CoverTemplateId,
+} from "../lib/coverTemplates";
 import type { DisguisePackage, DisguisePackageSlot } from "../lib/disguisePackage";
 import {
   createStarterTemplate,
@@ -117,7 +122,11 @@ export default function ForgeryBay({
   const [galleryOpen, setGalleryOpen] = useState(
     () => (startInGallery ?? (!isV2 && !hasExistingCover)),
   );
-  const [referenceTemplate, setReferenceTemplate] = useState<{ id: string; dataUrl: string } | null>(null);
+  const [referenceTemplate, setReferenceTemplate] = useState<{
+    id: CoverTemplateId;
+    dataUrl: string;
+  } | null>(null);
+  const [copiedSuggestedCopy, setCopiedSuggestedCopy] = useState<string | null>(null);
   const editorRef = useRef<ImageEditorRef>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -155,6 +164,11 @@ export default function ForgeryBay({
   const dynamicSubline = frontOption
     ? `${frontName.toUpperCase()} — ${frontOption.inspiration}`
     : "Build a maintenance contractor disguise on blank vinyl stock. The service gate only lets the right vehicle through.";
+
+  const referencedTemplate = referenceTemplate
+    ? getCoverTemplate(referenceTemplate.id)
+    : null;
+  const isStyleKit = referencedTemplate?.remixMode === "style-kit";
 
   // Initial check on mount
   useEffect(() => {
@@ -229,29 +243,83 @@ export default function ForgeryBay({
     }
   };
 
-  /** Load an approved template raster and replace the active package identity. */
-  const loadTemplateIntoEditor = async (dataUrl: string, label: string) => {
+  /**
+   * Load either the approved raster (quick remix) or the clean foundation
+   * (style-kit remix). The reference always stays the finished artwork.
+   */
+  const loadTemplateIntoEditor = async (dataUrl: string, templateId: CoverTemplateId) => {
     setGalleryOpen(false);
     setReady(false);
     setNotice(null);
-    setReferenceTemplate(null);
     try {
-      const templateId = label as CoverTemplateId;
-      const canonicalDataUrl = dataUrl.startsWith("data:image/")
+      const template = getCoverTemplate(templateId);
+      const referenceDataUrl = dataUrl.startsWith("data:image/")
         ? dataUrl
         : await loadCoverTemplateDataUrl(templateId);
-      setCurrentImage(canonicalDataUrl);
+      const editorDataUrl =
+        template.remixMode === "style-kit"
+          ? await loadCoverTemplateEditingBaseDataUrl(templateId)
+          : referenceDataUrl;
+
+      setReferenceTemplate(
+        template.remixMode === "style-kit"
+          ? { id: templateId, dataUrl: referenceDataUrl }
+          : null,
+      );
+      setCopiedSuggestedCopy(null);
+      setCurrentImage(editorDataUrl);
       setEditorKey((k) => k + 1);
-      await onSelectArtwork?.(canonicalDataUrl, templateId, activePackageSlot);
-      await runCheckOnDataUrl(canonicalDataUrl);
-      setNotice(`${label} loaded onto canvas. Remix it.`);
+      await onSelectArtwork?.(editorDataUrl, templateId, activePackageSlot);
+      await runCheckOnDataUrl(editorDataUrl);
+      setNotice(
+        template.remixMode === "style-kit"
+          ? `${template.company} remix kit loaded. The base is the foundation; add your own native Unlayer objects.`
+          : `${template.company} loaded onto canvas. Remix it.`,
+      );
     } catch {
-      setNotice(`Could not load ${label}.`);
+      setNotice(`Could not load ${templateId}.`);
     }
+  };
+
+  const copySuggestedText = async (value: string) => {
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      }
+    } catch {
+      // Fall through to the local clipboard fallback below.
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        copied = document.execCommand("copy");
+        textarea.remove();
+      } catch {
+        copied = false;
+      }
+    }
+
+    setCopiedSuggestedCopy(copied ? value : null);
+    setNotice(
+      copied
+        ? `Copied “${value}”. Add a native Text object in Unlayer, then paste.`
+        : "Copy was blocked by the browser. Select the value and copy it manually.",
+    );
   };
 
   /** Start options */
   const handleStartBlank = async () => {
+    setReferenceTemplate(null);
+    setCopiedSuggestedCopy(null);
     setBusy(true);
     setNotice(null);
     try {
@@ -273,6 +341,8 @@ export default function ForgeryBay({
   };
 
   const handleUseStarter = async () => {
+    setReferenceTemplate(null);
+    setCopiedSuggestedCopy(null);
     setBusy(true);
     setNotice(null);
     try {
@@ -305,6 +375,8 @@ export default function ForgeryBay({
       const rawDataUrl = reader.result as string;
       setBusy(true);
       setNotice(null);
+      setReferenceTemplate(null);
+      setCopiedSuggestedCopy(null);
       try {
         const res = await createStarterTemplate({
           kind: "user-image",
@@ -454,6 +526,7 @@ export default function ForgeryBay({
           }
           onUseAsReference={(templateId, dataUrl) => {
             setReferenceTemplate({ id: templateId, dataUrl });
+            setCopiedSuggestedCopy(null);
             setGalleryOpen(false);
           }}
           onStartBlank={() => {
@@ -461,55 +534,129 @@ export default function ForgeryBay({
             void handleStartBlank();
           }}
           onUseImage={() => {
+            setReferenceTemplate(null);
+            setCopiedSuggestedCopy(null);
             setGalleryOpen(false);
             handleTriggerUpload();
           }}
         />
       ) : (
         <>
-      {/* P8: template reference beside the editor */}
+      {/* Reference and honest style-kit guidance stay outside the Unlayer workspace. */}
       {referenceTemplate && !isV2 && (
-        <div
-          className="cm-template-reference"
-          style={{
-            marginBottom: "12px",
-            display: "flex",
-            gap: "12px",
-            alignItems: "center",
-            padding: "8px 12px",
-            backgroundColor: "#131312",
-            border: "1px solid var(--cm-line, #2a2a27)",
-            borderRadius: "6px",
-          }}
-        >
-          <img
-            src={referenceTemplate.dataUrl}
-            alt={`${referenceTemplate.id} reference`}
-            draggable={false}
-            style={{ width: "180px", aspectRatio: "1600 / 700", objectFit: "cover", borderRadius: "4px" }}
-          />
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontFamily: "var(--cm-mono, monospace)", fontSize: "10px", color: "var(--cm-grey, #70706b)", letterSpacing: "1.5px" }}>
-              REFERENCE: {referenceTemplate.id.toUpperCase()}
-            </span>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ padding: "4px 10px", fontSize: "11px" }}
-              onClick={() => void loadTemplateIntoEditor(referenceTemplate.dataUrl, referenceTemplate.id)}
-            >
-              REMIX THIS
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ padding: "4px 10px", fontSize: "11px" }}
-              onClick={() => setGalleryOpen(true)}
-            >
-              BROWSE TEMPLATES
-            </button>
+        isStyleKit && referencedTemplate ? (
+          <section
+            className="cm-remix-kit"
+            aria-label={`${referencedTemplate.company} editable remix kit`}
+            data-remix-mode="style-kit"
+            data-editing-base-image={referencedTemplate.editingBaseImage}
+          >
+            <div className="cm-remix-kit-header">
+              <div>
+                <p className="cm-kicker">REMIX KIT // STYLE PLATE</p>
+                <h2>EDITABLE REMIX KIT</h2>
+                <p>The reference is inspiration. The canvas is yours.</p>
+              </div>
+              <div className="cm-remix-kit-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => void loadTemplateIntoEditor(referenceTemplate.dataUrl, referenceTemplate.id)}
+                >
+                  REMIX THIS
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setGalleryOpen(true)}
+                >
+                  BROWSE TEMPLATES
+                </button>
+              </div>
+            </div>
+
+            <div className="cm-remix-kit-body">
+              <div className="cm-remix-kit-reference">
+                <span className="cm-remix-kit-label">REFERENCE</span>
+                <img
+                  src={referenceTemplate.dataUrl}
+                  alt={`${referencedTemplate.company} finished reference`}
+                  draggable={false}
+                />
+                <span className="cm-remix-kit-reference-note">MY REMIX // LIVE CANVAS BELOW</span>
+              </div>
+
+              <div className="cm-remix-kit-copy">
+                <span className="cm-remix-kit-label">COPY DECK // ADD WITH UNLAYER TEXT</span>
+                <div className="cm-remix-kit-copy-list">
+                  {referencedTemplate.suggestedCopy?.map((copy) => (
+                    <div className="cm-remix-kit-copy-row" key={`${copy.label}-${copy.value}`}>
+                      <span>{copy.label}</span>
+                      <code>{copy.value}</code>
+                      <button
+                        type="button"
+                        className="cm-remix-kit-copy-button"
+                        onClick={() => void copySuggestedText(copy.value)}
+                        aria-label={`Copy ${copy.label}: ${copy.value}`}
+                      >
+                        {copiedSuggestedCopy === copy.value ? "COPIED" : "COPY"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="cm-remix-kit-details">
+              <div>
+                <span className="cm-remix-kit-label">PALETTE</span>
+                <p>{referencedTemplate.palette}</p>
+              </div>
+              <div>
+                <span className="cm-remix-kit-label">SUGGESTED MOVES</span>
+                <ul>
+                  {referencedTemplate.suggestedElements?.map((element) => (
+                    <li key={element}>{element}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="cm-remix-kit-base-note">
+                <span className="cm-remix-kit-label">BASE PLATE // RASTER FOUNDATION</span>
+                <p>{referencedTemplate.editingBaseImage?.split("/").pop()}</p>
+                <small>Add text, graphics and stickers with Unlayer. Anything you add can be moved, resized, deleted and layered.</small>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <div className="cm-template-reference">
+            <img
+              src={referenceTemplate.dataUrl}
+              alt={`${referenceTemplate.id} reference`}
+              draggable={false}
+            />
+            <div>
+              <span className="cm-template-reference-label">
+                REFERENCE: {referenceTemplate.id.toUpperCase()}
+              </span>
+              <div className="cm-template-reference-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => void loadTemplateIntoEditor(referenceTemplate.dataUrl, referenceTemplate.id)}
+                >
+                  REMIX THIS
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setGalleryOpen(true)}
+                >
+                  BROWSE TEMPLATES
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )
       )}
       {/* Front Inspiration Box (Soft Inspiration) */}
       <div
@@ -709,7 +856,10 @@ export default function ForgeryBay({
       </div>
 
       {/* Editor Frame */}
-      <div className="cm-editor-frame">
+      <div
+        className="cm-editor-frame"
+        data-remix-base-image={isStyleKit ? referencedTemplate?.editingBaseImage : undefined}
+      >
         <div className="cm-editor-inner">
           <ImageEditor
             key={editorKey}

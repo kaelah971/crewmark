@@ -19,6 +19,7 @@ describe("P8.1 approved cover templates", () => {
       expect(t.whyItWorks.length).toBeGreaterThan(0);
       expect(t.guidance.length).toBeGreaterThan(0);
       expect(t.assetUrl).toMatch(/^\/templates\/covers\/.*\.png$/);
+      expect(["flattened", "style-kit"]).toContain(t.remixMode);
     }
   });
 
@@ -27,6 +28,36 @@ describe("P8.1 approved cover templates", () => {
     expect(COVER_TEMPLATE_H).toBe(700);
     const aspect = COVER_TEMPLATE_W / COVER_TEMPLATE_H;
     expect(Math.abs(aspect - 16 / 7)).toBeLessThan(0.01);
+  });
+
+  it("marks the three hero identities as style-kit remixes with clean bases", () => {
+    expect(getCoverTemplate("coral-bloom")).toMatchObject({
+      remixMode: "style-kit",
+      editingBaseImage: "/templates/covers/coral-bloom-base.png",
+      referenceImage: "/templates/covers/coral-bloom.png",
+    });
+    expect(getCoverTemplate("bug-out-305").editingBaseImage).toBe(
+      "/templates/covers/bug-out-305-base.png",
+    );
+    expect(getCoverTemplate("clearwater-pool").editingBaseImage).toBe(
+      "/templates/covers/clearwater-pool-co-base.png",
+    );
+    expect(getCoverTemplate("coral-bloom").suggestedCopy).toEqual(
+      expect.arrayContaining([
+        { label: "COMPANY", value: "CORAL BLOOM" },
+        { label: "SERVICE", value: "FLORISTS • SAME-DAY DELIVERY" },
+      ]),
+    );
+
+    for (const id of [
+      "nightshift-supply",
+      "vice-mobile-detail",
+      "palm-state-utilities",
+      "sunset-septic",
+      "paradise-cold-chain",
+    ] as const) {
+      expect(getCoverTemplate(id).remixMode).toBe("flattened");
+    }
   });
 
   it("validates template ids and lookups", () => {

@@ -20,6 +20,13 @@ export type CoverTemplateId =
   | "sunset-septic"
   | "paradise-cold-chain";
 
+export type CoverRemixMode = "flattened" | "style-kit";
+
+export interface SuggestedCopy {
+  readonly label: string;
+  readonly value: string;
+}
+
 export interface CoverTemplate {
   readonly id: CoverTemplateId;
   readonly company: string;
@@ -30,6 +37,15 @@ export interface CoverTemplate {
   readonly guidance: string;
   /** Exact production artwork asset path matching discovered on-disk filename */
   readonly assetUrl: string;
+  /** The honest authoring path offered by REMIX THIS. */
+  readonly remixMode: CoverRemixMode;
+  /** Finished approved artwork used as the visual reference for a style kit. */
+  readonly referenceImage?: string;
+  /** Clean raster foundation loaded into the real Unlayer Image Editor. */
+  readonly editingBaseImage?: string;
+  /** Guidance only; these values are copied into native Unlayer objects by the user. */
+  readonly suggestedCopy?: readonly SuggestedCopy[];
+  readonly suggestedElements?: readonly string[];
 }
 
 export const COVER_TEMPLATES: readonly CoverTemplate[] = [
@@ -42,6 +58,16 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Sun-faded resort livery reads as long-term local fleet.",
     guidance: "Make it feel like the van has been servicing pools since 2014.",
     assetUrl: "/templates/covers/clearwater-pool-co.png",
+    remixMode: "style-kit",
+    referenceImage: "/templates/covers/clearwater-pool-co.png",
+    editingBaseImage: "/templates/covers/clearwater-pool-co-base.png",
+    suggestedCopy: [
+      { label: "COMPANY", value: "CLEARWATER" },
+      { label: "DESCRIPTOR", value: "POOL CO." },
+      { label: "SERVICE", value: "POOL SERVICE • SINCE 2014" },
+      { label: "UNIT / SERVICE", value: "SVC // 305-0147" },
+    ],
+    suggestedElements: ["Sun / wave emblem", "Aqua accent band", "Orange service marker"],
   },
   {
     id: "bug-out-305",
@@ -52,6 +78,16 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Hazard yellow grabs the eye — readable from ten metres, memorable to cameras.",
     guidance: "Boring enough for a gated property. Loud enough to read from ten metres.",
     assetUrl: "/templates/covers/bug-out-305.png",
+    remixMode: "style-kit",
+    referenceImage: "/templates/covers/bug-out-305.png",
+    editingBaseImage: "/templates/covers/bug-out-305-base.png",
+    suggestedCopy: [
+      { label: "COMPANY", value: "BUG OUT" },
+      { label: "DESCRIPTOR", value: "305" },
+      { label: "SERVICE", value: "PEST CONTROL • SAME-DAY SERVICE" },
+      { label: "UNIT / SERVICE", value: "305-0147" },
+    ],
+    suggestedElements: ["Bug / shield icon", "Signal-lime hazard stripe", "Service label block"],
   },
   {
     id: "coral-bloom",
@@ -62,6 +98,16 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Friendly florist van; bright but expected on residential streets.",
     guidance: "Bright enough to belong. Normal enough to ignore.",
     assetUrl: "/templates/covers/coral-bloom.png",
+    remixMode: "style-kit",
+    referenceImage: "/templates/covers/coral-bloom.png",
+    editingBaseImage: "/templates/covers/coral-bloom-base.png",
+    suggestedCopy: [
+      { label: "COMPANY", value: "CORAL BLOOM" },
+      { label: "DESCRIPTOR", value: "FLORISTS" },
+      { label: "SERVICE", value: "FLORISTS • SAME-DAY DELIVERY" },
+      { label: "UNIT / SERVICE", value: "CBF-017" },
+    ],
+    suggestedElements: ["Flower motif", "Leaf / sticker accent", "Coral and green swoosh bands"],
   },
   {
     id: "nightshift-supply",
@@ -72,6 +118,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Dark industrial livery disappears at night; only the manifest number talks.",
     guidance: "Nocturnal and discreet — let the paperwork do the talking.",
     assetUrl: "/templates/covers/nightshift-supply.png",
+    remixMode: "flattened",
   },
   {
     id: "vice-mobile-detail",
@@ -82,6 +129,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Motorsport chrome and electric blue demand a second look.",
     guidance: "Mirror-finish pride. Loud is the point — just be ready to be remembered.",
     assetUrl: "/templates/covers/vice-mobile-detail.png",
+    remixMode: "flattened",
   },
   {
     id: "palm-state-utilities",
@@ -92,6 +140,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "The city trusts forms, numbers, and dull colors.",
     guidance: "Be deliberately boring. Forms, numbers, dull colors.",
     assetUrl: "/templates/covers/palm-state-utilities.png",
+    remixMode: "flattened",
   },
   {
     id: "sunset-septic",
@@ -102,6 +151,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Nobody looks twice at a septic truck.",
     guidance: "Old, tan, and unbothered — that's the disguise.",
     assetUrl: "/templates/covers/sunset-septic.png",
+    remixMode: "flattened",
   },
   {
     id: "paradise-cold-chain",
@@ -112,6 +162,7 @@ export const COVER_TEMPLATES: readonly CoverTemplate[] = [
     whyItWorks: "Refrigeration units are everywhere; the snowflake earns the gate.",
     guidance: "Cold, clean, and procedural — keep it frosty.",
     assetUrl: "/templates/covers/paradise-cold-chain.png",
+    remixMode: "flattened",
   },
 ];
 
@@ -140,6 +191,7 @@ export async function loadCoverTemplateDataUrl(id: CoverTemplateId): Promise<str
   if (cached) return cached;
 
   const template = getCoverTemplate(id);
+  const referenceImage = template.referenceImage ?? template.assetUrl;
 
   if (typeof Image === "undefined" || typeof document === "undefined") {
     // In node/test environments without HTMLImageElement
@@ -151,8 +203,8 @@ export async function loadCoverTemplateDataUrl(id: CoverTemplateId): Promise<str
 
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve();
-    img.onerror = (e) => reject(new Error(`Failed to load template asset: ${template.assetUrl}, error: ${String(e)}`));
-    img.src = template.assetUrl;
+    img.onerror = (e) => reject(new Error(`Failed to load template asset: ${referenceImage}, error: ${String(e)}`));
+    img.src = referenceImage;
   });
 
   const canvas = document.createElement("canvas");
@@ -187,10 +239,70 @@ export async function loadCoverTemplateDataUrl(id: CoverTemplateId): Promise<str
   return dataUrl;
 }
 
+/** In-memory cache for clean style-kit editing bases. */
+const templateEditingBaseDataUrlCache = new Map<CoverTemplateId, string>();
+
+/**
+ * Load the clean raster foundation for a style-kit template. This is the only
+ * image placed on the Unlayer canvas; the approved artwork remains a separate
+ * reference image and is never treated as editable layers.
+ */
+export async function loadCoverTemplateEditingBaseDataUrl(id: CoverTemplateId): Promise<string> {
+  const cached = templateEditingBaseDataUrlCache.get(id);
+  if (cached) return cached;
+
+  const template = getCoverTemplate(id);
+  if (template.remixMode !== "style-kit" || !template.editingBaseImage) {
+    throw new Error(`[crewmark] Template ${id} does not have a style-kit editing base.`);
+  }
+  const editingBaseImage = template.editingBaseImage;
+
+  if (typeof Image === "undefined" || typeof document === "undefined") {
+    return `data:image/png;base64,mockEditingBase_${id}`;
+  }
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = (e) => reject(new Error(`Failed to load editing base asset: ${editingBaseImage}, error: ${String(e)}`));
+    img.src = editingBaseImage;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = COVER_TEMPLATE_W;
+  canvas.height = COVER_TEMPLATE_H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("[crewmark] 2D canvas context unavailable; cannot draw editing base.");
+  }
+
+  const srcAspect = img.naturalWidth / img.naturalHeight;
+  const targetAspect = COVER_TEMPLATE_W / COVER_TEMPLATE_H;
+  let sx = 0;
+  let sy = 0;
+  let sWidth = img.naturalWidth;
+  let sHeight = img.naturalHeight;
+
+  if (srcAspect > targetAspect) {
+    sWidth = Math.round(img.naturalHeight * targetAspect);
+    sx = Math.round((img.naturalWidth - sWidth) / 2);
+  } else if (srcAspect < targetAspect) {
+    sHeight = Math.round(img.naturalWidth / targetAspect);
+    sy = Math.round((img.naturalHeight - sHeight) / 2);
+  }
+
+  ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, COVER_TEMPLATE_W, COVER_TEMPLATE_H);
+  const dataUrl = canvas.toDataURL("image/png");
+  templateEditingBaseDataUrlCache.set(id, dataUrl);
+  return dataUrl;
+}
+
 /** Synchronous fallback / test renderer returning data URL or mock */
 export function renderCoverTemplateDataUrl(id: CoverTemplateId): string {
   const cached = templateDataUrlCache.get(id);
   if (cached) return cached;
   const template = getCoverTemplate(id);
-  return template.assetUrl;
+  return template.referenceImage ?? template.assetUrl;
 }

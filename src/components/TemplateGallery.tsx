@@ -78,9 +78,14 @@ function TemplateCard({
       <div className="cm-template-card-body">
         <div className="cm-template-card-heading">
           <h3>{template.company}</h3>
-          <span style={{ color: ATTENTION_TONE[template.attention] ?? "var(--cm-paper)" }}>
-            {ATTENTION_TENDENCY[template.attention] ?? template.attention}
-          </span>
+          <div className="cm-template-card-signals">
+            <span className={`cm-template-remix-mode${template.remixMode === "style-kit" ? " is-style-kit" : ""}`}>
+              {template.remixMode === "style-kit" ? "EDITABLE REMIX KIT" : "QUICK REMIX"}
+            </span>
+            <span style={{ color: ATTENTION_TONE[template.attention] ?? "var(--cm-paper)" }}>
+              {ATTENTION_TENDENCY[template.attention] ?? template.attention}
+            </span>
+          </div>
         </div>
         <p className="cm-template-card-description">{template.personality}</p>
         <div className="cm-template-card-actions">
@@ -129,7 +134,9 @@ export default function TemplateGallery({
 
   const [previews, setPreviews] = useState<Map<CoverTemplateId, string>>(() => {
     const init = new Map<CoverTemplateId, string>();
-    for (const template of COVER_TEMPLATES) init.set(template.id, template.assetUrl);
+    for (const template of COVER_TEMPLATES) {
+      init.set(template.id, template.referenceImage ?? template.assetUrl);
+    }
     return init;
   });
 
