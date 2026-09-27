@@ -654,7 +654,7 @@ export default function JobYard({
           <p className="cm-kicker">305 Yard // Crew Sedan</p>
           <h2 className="cm-workorder-title">
             {cover ? (
-              <>{coverVersion === "COVER//02" ? "Cover//02 Active" : "Cover//01 Active"} <span>Disguise Mounted</span></>
+              <>{coverVersion === "COVER//02" ? "Cover//02 Active" : "Cover//01 Active"} <span>Livery Active</span></>
             ) : (
               <>CLEAN STATE <span>// UNDISGUISED</span></>
             )}
@@ -663,8 +663,8 @@ export default function JobYard({
             {missionActive ? "RUN ACTIVE // DISGUISE FROZEN. Resume the same mission run; editing is locked." : cover
               ? (coverVersion === "COVER//02"
                   ? "Rotated signature livery is active on vehicle."
-                  : "Contractor cover livery is mounted and ready for inspection.")
-              : "Sedan is currently in its factory black state. Choose and mount a fake-company disguise at the Forgery Garage before attempting the Port Vice gate run."}
+                  : "Contractor livery is applied and ready for inspection.")
+              : "Sedan is currently in its factory black state. Choose and apply a fake-company livery at the Forgery Garage before attempting the Port Vice gate run."}
           </p>
           <div className="cm-cover-frame cm-cover-frame--livery" style={{ maxWidth: "520px", margin: "14px 0" }}>
             <VehicleLiveryProjection livery={resolvedVehicleLivery} angle="yard" className="cm-vehicle-livery--yard cm-vehicle-livery--modal" />
@@ -898,9 +898,9 @@ export default function JobYard({
               <p className="cm-yard-onboarding-lead">
                 Build a fake front.
                 <br />
-                Print the cover.
+                Forge the identity.
                 <br />
-                Put it on the vehicle.
+                Respray the vehicle.
                 <br />
                 See if the city believes you.
               </p>

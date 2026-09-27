@@ -18,23 +18,23 @@ interface PrintApplyProps {
 }
 
 const BEATS_V1 = [
-  "Print queue // 01",
-  "Ink profile // ready",
-  "Vinyl // cutting",
-  "Application // complete",
+  "Identity file // 01 locked",
+  "Livery profile // ready",
+  "Vehicle finish // respraying",
+  "Vehicle finish // complete",
 ] as const;
 
 const BEATS_V2 = [
-  "Old vinyl // stripping",
-  "New profile // printing",
+  "Old livery // stripping",
+  "New livery // respraying",
   "Signature // rotated",
-  "Application // complete",
+  "Vehicle finish // complete",
 ] as const;
 
 const BEAT_MS = 850;
 
 /**
- * PRINT/APPLY — short post-lock sequence (P3.5A-R.2 & P3.5A-R.5).
+ * LIVERY PREP — short post-lock sequence (P3.5A-R.2 & P3.5A-R.5).
  */
 export default function PrintApply({
   cover,
@@ -55,7 +55,7 @@ export default function PrintApply({
   const done = beat >= beats.length;
 
   return (
-    <section className="cm-screen" aria-label={isRotation ? "Signature rotation print and apply" : "Print and apply"}>
+    <section className="cm-screen" aria-label={isRotation ? "Signature rotation livery preparation" : "Vehicle livery preparation"}>
       {!done ? (
         <>
           <p className="cm-kicker">Print bay // {isRotation ? "Cover//02 // Rotation" : "Cover//01"}</p>

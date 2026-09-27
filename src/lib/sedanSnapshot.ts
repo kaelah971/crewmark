@@ -297,17 +297,35 @@ class OffscreenSedanRenderer {
     const hemi = new THREE.HemisphereLight(0x2d3748, 0x111827, 0.85);
     this.scene.add(hemi);
 
-    const key = new THREE.SpotLight(0xfffbe8, 3.6, 25, Math.PI / 4, 0.4, 1.2);
+    const key = new THREE.SpotLight(0xffe0ad, 4.0, 25, Math.PI / 4, 0.4, 1.2);
     key.position.set(4, 9, 6);
     this.scene.add(key);
 
-    const fill = new THREE.DirectionalLight(0x38bdf8, 1.3);
+    const fill = new THREE.DirectionalLight(0x38bdf8, 1.55);
     fill.position.set(-6, 5, 8);
     this.scene.add(fill);
 
     const rim = new THREE.DirectionalLight(0xffffff, 1.1);
     rim.position.set(6, 4, -8);
     this.scene.add(rim);
+
+    const yardAmbient = new THREE.AmbientLight(0xffb875, 0.42);
+    this.scene.add(yardAmbient);
+
+    const yardWarmFill = new THREE.DirectionalLight(0xffbf7a, 0.72);
+    yardWarmFill.position.set(-4, 6, 6);
+    this.scene.add(yardWarmFill);
+
+    // Yard-matched practicals keep the black factory finish dimensional without
+    // baking any scene color into the livery itself.
+    const yardAmber = new THREE.SpotLight(0xffb45d, 2.8, 22, Math.PI / 4, 0.65, 1.4);
+    yardAmber.position.set(3.5, 7.5, 5.5);
+    yardAmber.target.position.set(0, 0.65, 0);
+    this.scene.add(yardAmber.target, yardAmber);
+
+    const yardPink = new THREE.DirectionalLight(0xf04f8f, 0.42);
+    yardPink.position.set(-5, 3, -6);
+    this.scene.add(yardPink);
 
     // Soft ground contact shadow beneath the vehicle
     const shadowGeo = new THREE.PlaneGeometry(5.6, 2.6);

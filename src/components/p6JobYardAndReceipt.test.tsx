@@ -30,6 +30,8 @@ describe("P6 JobYard and FinalRunReceipt UI", () => {
 
       expect(html).toContain("305 PRINT &amp; SIGN // AFTER HOURS");
       expect(html).toContain("Build a fake front.");
+      expect(html).toContain("Forge the identity.");
+      expect(html).toContain("Respray the vehicle.");
       expect(html).toContain("CLICK OBJECTS TO INTERACT // ESC CLOSES MENUS");
       expect(html).toContain("CHECK THE JOB TERMINAL");
       expect(html).toContain("ENTER THE YARD");
