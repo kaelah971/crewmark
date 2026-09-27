@@ -8,6 +8,11 @@ export type SedanSnapshotAngle = "yard" | "mission";
 // Memory cache for rendered sedan snapshot data URLs
 const SNAPSHOT_CACHE = new Map<string, string>();
 
+// The GLB's wheel bottoms sit just below the scene ground plane. Keep the
+// canonical car lifted by that measured amount so the wheels, not the sills,
+// meet the contact shadow in every 2.5D projection.
+export const SEDAN_GROUND_Y = 0.19;
+
 let sharedModelPromise: Promise<THREE.Group> | null = null;
 
 function createSnapshotShadowTexture(): THREE.CanvasTexture {
@@ -327,6 +332,12 @@ class OffscreenSedanRenderer {
     yardPink.position.set(-5, 3, -6);
     this.scene.add(yardPink);
 
+    // A restrained rear-side lift keeps the back quarter readable when the
+    // mission camera turns toward the booth without flattening the black paint.
+    const rearFill = new THREE.DirectionalLight(0x8ab4ff, 0.68);
+    rearFill.position.set(5, 4, -8);
+    this.scene.add(rearFill);
+
     // Soft ground contact shadow beneath the vehicle
     const shadowGeo = new THREE.PlaneGeometry(5.6, 2.6);
     shadowGeo.rotateX(-Math.PI / 2);
@@ -370,10 +381,13 @@ class OffscreenSedanRenderer {
     const decals = await buildLiveryDecals(car, livery);
     car.add(decals);
 
-    // Add car to scene
+    // Add car to scene. The source model's wheel bottoms are at y≈-0.16;
+    // lifting it onto y=0 prevents the road shadow from cutting through the
+    // tires and keeps the mission car visually planted.
     const oldCar = this.scene.getObjectByName("render-car");
     if (oldCar) this.scene.remove(oldCar);
     car.name = "render-car";
+    car.position.y = SEDAN_GROUND_Y;
     this.scene.add(car);
 
     // Position camera based on angle:
@@ -383,8 +397,11 @@ class OffscreenSedanRenderer {
       this.camera.position.set(6.2, 0.78, 0.20);
       this.camera.lookAt(0, 0.65, 0.15);
     } else {
-      this.camera.position.set(5.6, 0.90, 1.10);
-      this.camera.lookAt(0, 0.65, 0.15);
+      // Leave a little more air around the front 3/4 silhouette than the
+      // parked side shot; the mission projection is enlarged by CSS after
+      // this transparent render is composited over the road plate.
+      this.camera.position.set(6.45, 0.96, 1.42);
+      this.camera.lookAt(0, 0.72, 0.20);
     }
 
     this.renderer.render(this.scene, this.camera);

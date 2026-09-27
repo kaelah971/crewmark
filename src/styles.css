@@ -2725,10 +2725,29 @@ body {
 /* Realistic service vehicle with exact player-designed COVER//01 */
 .cm-service-vehicle {
   position: absolute;
-  transform: translate(-50%, -50%);
+  /* The mission position is the road contact point, not the image centre. */
+  transform: translate(-50%, -62%);
   pointer-events: none;
   z-index: 3;
-  will-change: left, top, width;
+  will-change: left, top, width, transform;
+}
+
+.cm-service-vehicle::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 6%;
+  height: 14%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(1, 5, 8, 0.82) 0%, rgba(1, 5, 8, 0.34) 46%, transparent 78%);
+  filter: blur(5px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cm-service-vehicle .cm-vehicle-livery--mission {
+  z-index: 1;
 }
 
 .cm-service-vehicle-img {
@@ -4988,7 +5007,11 @@ body {
 }
 
 .cm-service-vehicle {
-  aspect-ratio: 15 / 8;
+  aspect-ratio: 16 / 9;
+}
+
+.cm-vehicle-livery--mission .cm-vehicle-3d-img {
+  filter: brightness(1.14) saturate(1.02) contrast(1.08) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.78));
 }
 
 .cm-cover-frame--livery {

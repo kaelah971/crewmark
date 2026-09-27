@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import type { VehicleLivery } from "./vehicleLivery";
-import { applyLiveryPaint, buildLiveryDecals } from "./sedanSnapshot";
+import { applyLiveryPaint, buildLiveryDecals, SEDAN_GROUND_Y } from "./sedanSnapshot";
 
 export interface CoverInspection3DSceneResult {
   scene: THREE.Scene;
@@ -11,6 +11,26 @@ export interface CoverInspection3DSceneResult {
   setVehicleLivery: (livery: VehicleLivery) => void;
   setCameraPreset: (preset: "hero" | "side" | "rear" | "detail") => void;
   dispose: () => void;
+}
+
+function createInspectionShadowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const context = canvas.getContext("2d");
+
+  if (context) {
+    const gradient = context.createRadialGradient(128, 64, 8, 128, 64, 124);
+    gradient.addColorStop(0, "rgba(0, 0, 0, 0.72)");
+    gradient.addColorStop(0.46, "rgba(1, 5, 8, 0.34)");
+    gradient.addColorStop(1, "rgba(1, 5, 8, 0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
 }
 
 export function initCoverInspection3D(
@@ -28,18 +48,22 @@ export function initCoverInspection3D(
   scene.fog = new THREE.FogExp2(0x060709, 0.035);
 
   const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 80);
-  const target = new THREE.Vector3(0, 0.70, 0.20);
+  const target = new THREE.Vector3(0, 0.70, 0.10);
 
-  // Curated Camera Presets around vehicle (4.6m sedan: +X is driver side, +Z is front, -Z is rear)
+  // Curated camera presets around the canonical sedan. The GLB is +X driver
+  // side, +Z front, and -Z rear. Keep enough radius for the complete 5 m
+  // silhouette in the narrow VehicleEditor viewport as well as the full-screen
+  // CoverInspection view.
   const presets: Record<"hero" | "side" | "rear" | "detail", { radius: number; theta: number; phi: number }> = {
-    // Front 3/4 hero angle (elevated, viewer looking at front-left driver side)
-    hero: { radius: 6.8, theta: Math.PI / 4, phi: 1.22 },
-    // Side view: directly facing the +X driver door where the door badge is mounted
-    side: { radius: 5.6, theta: Math.PI / 2, phi: 1.35 },
-    // Rear 3/4 angle: showcasing taillights, roofline, and rear quarter markings
-    rear: { radius: 6.8, theta: (3 * Math.PI) / 4, phi: 1.22 },
-    // Cover detail view: zoomed in right onto the driver door badge (+X)
-    detail: { radius: 2.8, theta: Math.PI / 2, phi: 1.35 },
+    // Front 3/4: driver side + front quarter.
+    hero: { radius: 8.9, theta: Math.PI / 4, phi: 1.22 },
+    // Side: directly facing the +X driver door where the badge is mounted.
+    side: { radius: 7.9, theta: Math.PI / 2, phi: 1.35 },
+    // Rear 3/4: driver side + rear quarter and unit marking.
+    rear: { radius: 8.9, theta: (3 * Math.PI) / 4, phi: 1.22 },
+    // Cover detail: close enough to read the driver door badge without
+    // cropping the panel edges.
+    detail: { radius: 4.0, theta: Math.PI / 2, phi: 1.35 },
   };
 
   const spherical = new THREE.Spherical(presets.hero.radius, presets.hero.phi, presets.hero.theta);
@@ -58,7 +82,7 @@ export function initCoverInspection3D(
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.2;
+  renderer.toneMappingExposure = 1.28;
   renderer.domElement.style.touchAction = "none";
   container.appendChild(renderer.domElement);
 
@@ -77,12 +101,19 @@ export function initCoverInspection3D(
   scene.add(keyLight);
 
   // Fill light: soft cool cyan/blue side light illuminating the decal door panel
-  const fillLight = new THREE.DirectionalLight(0x38BDF8, 1.4);
+  const fillLight = new THREE.DirectionalLight(0x38BDF8, 1.55);
   fillLight.position.set(-6, 5, 8);
   scene.add(fillLight);
 
+  // Soft cool rim on the rear driver quarter. Without a rear-side source the
+  // rear preset loses the wheel, taillight, and unit marking in the dark studio.
+  const rearRimLight = new THREE.DirectionalLight(0x93C5FD, 0.78);
+  rearRimLight.position.set(5, 4, -8);
+  rearRimLight.target.position.set(0, 0.70, -0.40);
+  scene.add(rearRimLight.target, rearRimLight);
+
   // Warm amber sodium accent from garage direction
-  const accentLight = new THREE.PointLight(0xF59E0B, 2.5, 16, 1.5);
+  const accentLight = new THREE.PointLight(0xF59E0B, 2.2, 16, 1.5);
   accentLight.position.set(-5, 3, -4);
   scene.add(accentLight);
 
@@ -102,9 +133,9 @@ export function initCoverInspection3D(
   const shadowGeo = new THREE.PlaneGeometry(5.6, 2.8);
   shadowGeo.rotateX(-Math.PI / 2);
   const shadowMat = new THREE.MeshBasicMaterial({
-    color: 0x010203,
+    map: createInspectionShadowTexture(),
     transparent: true,
-    opacity: 0.82,
+    depthWrite: false,
   });
   const contactShadow = new THREE.Mesh(shadowGeo, shadowMat);
   contactShadow.position.y = 0.01;
@@ -138,7 +169,9 @@ export function initCoverInspection3D(
       const car = gltf.scene;
       car.name = "vehicle-sedan";
       car.scale.set(1.15, 1.15, 1.15);
-      car.position.set(0, 0, 0);
+      // Match the offscreen mission/yard projection: wheel bottoms meet the
+      // studio ground instead of being half buried in it.
+      car.position.set(0, SEDAN_GROUND_Y, 0);
 
       car.traverse((child) => {
         if (child instanceof THREE.Mesh) {

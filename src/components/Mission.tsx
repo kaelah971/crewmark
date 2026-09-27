@@ -350,16 +350,19 @@ export default function Mission({
     { label: "Surface age", check: snapshot.analysis.checks.find((c) => c.id === "weathering") },
   ];
   const t = Math.min(1, Math.max(0, vehicle.dist / VEHICLE_TUNING.yardEnd));
-  // Smooth 2.5D perspective positioning along the Port Vice approach lane
+  // Smooth 2.5D perspective positioning along the Port Vice approach lane.
+  // Keep the sedan large enough to read as the player vehicle while it still
+  // recedes toward the booth instead of becoming a tiny road prop.
   const isPreGate = t <= 0.68;
   const progressNorm = isPreGate ? t / 0.68 : (t - 0.68) / 0.32;
   const baseY = isPreGate ? 74 - progressNorm * 18 : 56 - progressNorm * 10;
-  const baseX = isPreGate ? 50 + progressNorm * 18 : 68 + progressNorm * 8;
-  const scale = isPreGate ? 1.0 - progressNorm * 0.38 : 0.62 - progressNorm * 0.18;
-  const laneSpan = 14 * (1 - t * 0.45);
+  const baseX = isPreGate ? 50 + progressNorm * 17 : 67 + progressNorm * 8;
+  const scale = isPreGate ? 1.06 - progressNorm * 0.34 : 0.72 - progressNorm * 0.15;
+  const laneSpan = 11.5 * (1 - t * 0.35);
   const vehicleX = baseX + vehicle.lane * laneSpan;
-  const vehicleY = baseY + vehicle.lane * 1.5;
-  const vehicleWidth = Math.round(240 * scale);
+  const vehicleY = baseY + vehicle.lane * 1.35;
+  const vehicleWidth = Math.round(300 * scale);
+  const vehicleHeight = Math.round(vehicleWidth * 9 / 16);
 
   // Camera smoothly frames approach → checkpoint booth → restricted yard
   const camera = { x: 50 + t * 18, y: 64 - t * 14 };
@@ -395,7 +398,7 @@ export default function Mission({
             left: `${vehicleX}%`,
             top: `${vehicleY}%`,
             width: `${vehicleWidth}px`,
-            height: `${Math.round(vehicleWidth * 8 / 15)}px`,
+            height: `${vehicleHeight}px`,
           }}
           aria-hidden={true}
         >
