@@ -15,6 +15,7 @@ import {
 } from "../lib/receiptStorage";
 import type { CoverAnalysis } from "../lib/coverAnalysis";
 import type { MissionSnapshot } from "./mission";
+import { createDisguisePackage } from "../lib/disguisePackage";
 import { jobObjective, vehicleReport, printShopReport, exitGateReport } from "./jobs";
 
 function fakeAnalysis(score: number = 82): CoverAnalysis {
@@ -38,13 +39,18 @@ function fakeAnalysis(score: number = 82): CoverAnalysis {
   };
 }
 
-function fakeSnapshot(score: number = 82, coverImage: string = "data:image/png;base64,bWlzc2lvbkNvdmVy"): MissionSnapshot {
+function fakeSnapshot(
+  score: number = 82,
+  coverImage: string = "data:image/png;base64,bWlzc2lvbkNvdmVy",
+  vehicleLivery?: MissionSnapshot["vehicleLivery"],
+): MissionSnapshot {
   return {
     coverImage,
     coverLockedAt: "2026-09-23T01:30:00.000Z",
     analysis: fakeAnalysis(score),
     score,
     startedAt: "2026-09-23T01:35:00.000Z",
+    vehicleLivery,
   };
 }
 
@@ -90,6 +96,17 @@ describe("P3.5A-R.4 camera receipts model", () => {
     // Receipts generated from the mission snapshot are untouched
     expect(receipts[0].coverImage).toBe(snap.coverImage);
     expect(receipts[0].coverImage).not.toBe(editedCover);
+  });
+
+  it("freezes the COVER//01 livery even when COVER//02 is edited later", () => {
+    const cover01 = createDisguisePackage("data:image/png;base64,COVER01", "bug-out-305", undefined, undefined, "COVER//01");
+    const cover02 = createDisguisePackage("data:image/png;base64,COVER02", "clearwater-pool", undefined, undefined, "COVER//02");
+    const snap = fakeSnapshot(82, undefined, cover01.vehicleLivery);
+    const receipts = generateReceipts(snap, "clean");
+
+    expect(receipts[0].vehicleLivery).toEqual(cover01.vehicleLivery);
+    expect(receipts[0].vehicleLivery).not.toEqual(cover02.vehicleLivery);
+    expect(receipts[1].vehicleLivery?.templateId).toBe("bug-out-305");
   });
 
   it("is completely deterministic: same mission state produces identical receipt outputs", () => {

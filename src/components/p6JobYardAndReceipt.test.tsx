@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToString } from "react-dom/server";
 import JobYard from "./JobYard";
 import FinalRunReceipt from "./FinalRunReceipt";
+import CctvReview from "./CctvReview";
 import { buildRunReceipt } from "../lib/runReceipt";
 import { createDisguisePackage } from "../lib/disguisePackage";
 
@@ -72,8 +73,11 @@ describe("P6 JobYard and FinalRunReceipt UI", () => {
         />,
       );
 
-      // In-world vehicle cover
-      expect(html).toContain("cm-vehicle-cover");
+      // Canonical real sedan wrapper — never the retired flat-cover class.
+      expect(html).toContain("cm-yard-vehicle");
+      expect(html).toContain("cm-vehicle-3d-projection");
+      expect(html).not.toContain("cm-vehicle-cover");
+      expect(html).not.toContain("service-vehicle");
       // In-world shipping crate
       expect(html).toContain("cm-crate-cover");
       expect(html).toContain("CRATE // MANIFEST");
@@ -89,6 +93,98 @@ describe("P6 JobYard and FinalRunReceipt UI", () => {
       expect(html).toContain("CRATE");
       expect(html).toContain("JACKET");
       expect(html).toContain("PASS");
+    });
+
+    it("uses the canonical clean sedan renderer without a legacy fallback", () => {
+      const html = renderToString(
+        <JobYard
+          hud={{ rep: 0, heat: 0, territory: 0 }}
+          jobAccepted={false}
+          onAcceptJob={vi.fn()}
+          cover={null}
+          onEditCover={vi.fn()}
+          completed={false}
+        />,
+      );
+
+      expect(html).toContain("cm-yard-vehicle");
+      expect(html).toContain('data-livery-template="clean-factory"');
+      expect(html).not.toContain("service-vehicle");
+    });
+
+    it("renders CCTV with the frozen livery and no pasted cover rectangle", () => {
+      const receipts = [
+        {
+          id: "CAM//01",
+          source: "SECURITY",
+          location: "GATE",
+          timestamp: "01:00:00 EDT",
+          confidence: 94,
+          coverImage: dummyCoverUrl,
+          coverLockedAt: "2026-01-01T00:00:00.000Z",
+          analysisScore: 88,
+          status: "CONFIRMED",
+          cameraAngle: "gate",
+          vehicleLivery: disguisePackage.vehicleLivery,
+          visualProfile: { colorMatch: "MATCH", identitySignal: "MATCH", serviceDetail: "MATCH", surfaceAge: "MATCH" },
+        },
+        {
+          id: "CAM//02",
+          source: "YARD",
+          location: "YARD",
+          timestamp: "01:01:00 EDT",
+          confidence: 90,
+          coverImage: dummyCoverUrl,
+          coverLockedAt: "2026-01-01T00:00:00.000Z",
+          analysisScore: 88,
+          status: "CORRELATED",
+          cameraAngle: "yard",
+          vehicleLivery: disguisePackage.vehicleLivery,
+          visualProfile: { colorMatch: "MATCH", identitySignal: "MATCH", serviceDetail: "MATCH", surfaceAge: "MATCH" },
+        },
+        {
+          id: "CAM//03",
+          source: "DOCK",
+          location: "DOCK",
+          timestamp: "01:02:00 EDT",
+          confidence: 86,
+          coverImage: dummyCoverUrl,
+          coverLockedAt: "2026-01-01T00:00:00.000Z",
+          analysisScore: 88,
+          status: "WATCHLIST",
+          cameraAngle: "causeway",
+          vehicleLivery: disguisePackage.vehicleLivery,
+          visualProfile: { colorMatch: "MATCH", identitySignal: "MATCH", serviceDetail: "MATCH", surfaceAge: "MATCH" },
+        },
+      ] as const;
+      const html = renderToString(
+        <CctvReview
+          receipts={receipts}
+          historicalVehicleLivery={disguisePackage.vehicleLivery}
+          alreadyBurned={false}
+          onCompleteReview={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+
+      expect(html).toContain("cm-cctv-vehicle-projection");
+      expect(html).toContain('data-livery-template="bug-out-305"');
+      expect(html).not.toContain("service-vehicle");
+      expect(html).not.toContain("cm-cctv-vehicle-img");
+      expect(html).not.toContain("cm-cctv-vehicle-cover");
+
+      const legacyReceipts = receipts.map(({ vehicleLivery: _vehicleLivery, ...receipt }) => receipt) as unknown as typeof receipts;
+      const legacyHtml = renderToString(
+        <CctvReview
+          receipts={legacyReceipts}
+          historicalVehicleLivery={disguisePackage.vehicleLivery}
+          alreadyBurned={false}
+          onCompleteReview={vi.fn()}
+          onClose={vi.fn()}
+        />,
+      );
+      expect(legacyHtml).toContain('data-livery-template="bug-out-305"');
+      expect(legacyHtml).toContain('data-livery-company="BUG OUT 305"');
     });
   });
 

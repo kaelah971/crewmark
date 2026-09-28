@@ -49,6 +49,8 @@ interface JobYardProps {
   completed?: boolean;
   /** P3.5A-R.4: surveillance camera receipts derived from mission snapshot */
   receipts?: readonly [CameraReceipt, CameraReceipt, CameraReceipt] | null;
+  /** Frozen mission livery used when loading legacy receipts without one. */
+  historicalVehicleLivery?: VehicleLivery | null;
   receiptsSeen?: boolean;
   coverBurned?: boolean;
   onCompleteReceiptReview?: () => void;
@@ -95,6 +97,7 @@ export default function JobYard({
   hasReceipt = false,
   completed = false,
   receipts,
+  historicalVehicleLivery,
   receiptsSeen = false,
   coverBurned = false,
   onCompleteReceiptReview,
@@ -492,20 +495,22 @@ export default function JobYard({
             />
           );
         })}
-        {/* Parked crew sedan: clean factory black when undisguised, transformed into fleet vehicle when disguised */}
-        <div
-          className="cm-vehicle-cover cm-vehicle-hitbox"
-          role="button"
-          tabIndex={0}
-          title={disguisePackage ? "Parked crew sedan — Click to inspect disguise or edit vehicle" : "Parked crew sedan — Clean / Undisguised State"}
-          onClick={() => interact("vehicle")}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") interact("vehicle");
-          }}
-          style={{ cursor: "pointer", pointerEvents: "auto" }}
-        >
-          <VehicleLiveryProjection livery={resolvedVehicleLivery} angle="yard" className="cm-vehicle-livery--yard" />
-        </div>
+        {/* Parked crew sedan: clean factory black when undisguised, transformed into fleet vehicle when disguised. */}
+        {!cctvOpen && (
+          <div
+            className="cm-yard-vehicle"
+            role="button"
+            tabIndex={0}
+            title={disguisePackage ? "Parked crew sedan — Click to inspect disguise or edit vehicle" : "Parked crew sedan — Clean / Undisguised State"}
+            onClick={() => interact("vehicle")}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") interact("vehicle");
+            }}
+            style={{ cursor: "pointer", pointerEvents: "auto" }}
+          >
+            <VehicleLiveryProjection livery={resolvedVehicleLivery} angle="yard" className="cm-vehicle-livery--yard" />
+          </div>
+        )}
 
         {disguisePackage ? (
           <>
@@ -791,6 +796,7 @@ export default function JobYard({
       {cctvOpen && receipts ? (
         <CctvReview
           receipts={receipts}
+          historicalVehicleLivery={historicalVehicleLivery}
           alreadyBurned={coverBurned ?? false}
           onCompleteReview={() => {
             onCompleteReceiptReview?.();

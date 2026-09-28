@@ -1,29 +1,28 @@
 import { useEffect, useState } from "react";
-import serviceVehicleCutout from "../assets/world/service-vehicle.png";
+import { DEFAULT_CLEAN_VEHICLE_LIVERY } from "../lib/disguisePackage";
 import type { VehicleLivery } from "../lib/vehicleLivery";
-import { getSedanSnapshot, type SedanSnapshotAngle } from "../lib/sedanSnapshot";
+import { getSedanSnapshot, getSedanSnapshotKey, type SedanSnapshotAngle } from "../lib/sedanSnapshot";
 
 interface VehicleLiveryProjectionProps {
-  livery: VehicleLivery;
+  livery?: VehicleLivery;
   className?: string;
-  showVehicle?: boolean;
   angle?: SedanSnapshotAngle;
 }
 
 export function VehicleLiveryProjection({
-  livery,
+  livery = DEFAULT_CLEAN_VEHICLE_LIVERY,
   className = "",
-  showVehicle = true,
   angle = "yard",
 }: VehicleLiveryProjectionProps) {
-  const [snapshotUrl, setSnapshotUrl] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<{ key: string; url: string } | null>(null);
+  const snapshotKey = getSedanSnapshotKey(livery, angle);
 
   useEffect(() => {
     let live = true;
     getSedanSnapshot(livery, angle)
       .then((url) => {
         if (live && url) {
-          setSnapshotUrl(url);
+          setSnapshot({ key: snapshotKey, url });
         }
       })
       .catch((err) => {
@@ -33,23 +32,25 @@ export function VehicleLiveryProjection({
     return () => {
       live = false;
     };
-  }, [livery, angle]);
+  }, [angle, livery, snapshotKey]);
 
-  const displaySrc = snapshotUrl ?? (showVehicle ? serviceVehicleCutout : null);
-
-  if (!displaySrc) return null;
+  const displaySrc = snapshot?.key === snapshotKey ? snapshot.url : null;
 
   return (
     <div
       className={`cm-vehicle-3d-projection ${className}`.trim()}
+      data-livery-template={livery.templateId ?? (livery.companyLabel === DEFAULT_CLEAN_VEHICLE_LIVERY.companyLabel ? "clean-factory" : "custom")}
+      data-livery-company={livery.companyLabel}
       aria-hidden="true"
     >
-      <img
-        src={displaySrc}
-        alt={`${livery.companyLabel} 3D Fleet Car`}
-        className="cm-vehicle-3d-img"
-        draggable={false}
-      />
+      {displaySrc ? (
+        <img
+          src={displaySrc}
+          alt={`${livery.companyLabel} 3D Fleet Car`}
+          className="cm-vehicle-3d-img"
+          draggable={false}
+        />
+      ) : null}
     </div>
   );
 }

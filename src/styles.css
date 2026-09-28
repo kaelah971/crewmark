@@ -2668,27 +2668,6 @@ body {
   background: #10100f;
 }
 
-/* Live COVER//01 projection on the yard sedan door panel. Glued to the
-   world-locked camera layer like other in-world overlays. */
-.cm-vehicle-cover {
-  position: absolute;
-  left: 43%;
-  top: 50.5%;
-  width: 13%;
-  aspect-ratio: 16 / 7;
-  transform: perspective(500px) rotateY(-5deg);
-  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.6));
-  pointer-events: none;
-  z-index: 2;
-}
-
-.cm-vehicle-cover img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
 /* ---------- P3.5A-R.3 mission (mounts only with the checkpoint plate) ---------- */
 
 /* Unit position chevron: explicit utility graphic, stand-in until the
@@ -3631,6 +3610,7 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  height: auto;
 }
 
 .cm-cctv-vehicle--gate {
@@ -3652,27 +3632,14 @@ body {
   width: 230px;
 }
 
-.cm-cctv-vehicle-img {
-  display: block;
+.cm-cctv-vehicle .cm-cctv-vehicle-projection {
   width: 100%;
   height: auto;
-  filter: contrast(1.1) brightness(0.9);
+  aspect-ratio: 16 / 9;
 }
 
-.cm-cctv-vehicle-cover {
-  position: absolute;
-  left: 28%;
-  top: 48%;
-  width: 28%;
-  aspect-ratio: 16 / 7;
-  overflow: hidden;
-}
-
-.cm-cctv-vehicle-cover img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.cm-cctv-vehicle .cm-vehicle-3d-img {
+  filter: contrast(1.12) brightness(0.88) saturate(0.82) drop-shadow(0 5px 10px rgba(0, 0, 0, 0.78));
 }
 
 .cm-cctv-pips {
@@ -5497,12 +5464,16 @@ body {
   color: var(--cm-red);
 }
 
-.cm-vehicle-hitbox {
+.cm-yard-vehicle {
   position: absolute;
   left: 46%;
   top: 54.25%;
   width: 23%;
   height: 14%;
+  aspect-ratio: auto;
+  transform: none;
+  filter: none;
+  overflow: visible;
   z-index: 3;
   cursor: pointer;
   pointer-events: auto;
@@ -5510,8 +5481,8 @@ body {
 
 /* The yard plate is wet and the snapshot is transparent, so ground it with
    narrow, feathered contact layers rather than a visible image rectangle. */
-.cm-vehicle-hitbox::before,
-.cm-vehicle-hitbox::after {
+.cm-yard-vehicle::before,
+.cm-yard-vehicle::after {
   content: "";
   position: absolute;
   left: 10%;
@@ -5521,7 +5492,7 @@ body {
   z-index: 0;
 }
 
-.cm-vehicle-hitbox::before {
+.cm-yard-vehicle::before {
   top: 65%;
   height: 17%;
   background: radial-gradient(ellipse at center, rgba(1, 5, 8, 0.82) 0%, rgba(1, 5, 8, 0.38) 45%, transparent 76%);
@@ -5529,7 +5500,7 @@ body {
   transform: scaleY(0.48);
 }
 
-.cm-vehicle-hitbox::after {
+.cm-yard-vehicle::after {
   left: 17%;
   right: 17%;
   top: 70%;
@@ -5558,7 +5529,7 @@ body {
   transform: none;
 }
 
-.cm-vehicle-hitbox .cm-vehicle-livery--yard {
+.cm-yard-vehicle .cm-vehicle-livery--yard {
   inset: 0;
   width: auto;
   height: auto;

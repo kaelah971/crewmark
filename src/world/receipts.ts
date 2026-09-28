@@ -1,4 +1,5 @@
 import type { CheckpointBranch, MissionSnapshot } from "./mission";
+import type { VehicleLivery } from "../lib/vehicleLivery";
 
 /**
  * P3.5A-R.4: "CAMERAS KEEP RECEIPTS / THE COVER BURNS"
@@ -17,6 +18,8 @@ export interface CameraReceipt {
   readonly timestamp: string;
   readonly confidence: number;
   readonly coverImage: string;
+  /** Frozen mission livery; absent only on legacy receipt payloads. */
+  readonly vehicleLivery?: VehicleLivery;
   readonly coverLockedAt: string;
   readonly analysisScore: number;
   readonly status: "CONFIRMED" | "CORRELATED" | "WATCHLIST";
@@ -90,6 +93,7 @@ export function generateReceipts(
   const identityCheck = snapshot.analysis.checks.find((c) => c.id === "identity");
   const detailCheck = snapshot.analysis.checks.find((c) => c.id === "detail");
   const weatheringCheck = snapshot.analysis.checks.find((c) => c.id === "weathering");
+  const historicalVehicleLivery = snapshot.vehicleLivery ?? snapshot.disguisePackage?.vehicleLivery;
 
   const colorStatus = orangeCheck?.status === "PASS" ? "MATCH // ORANGE LOWER PROFILE" : "CORRELATED // PARTIAL STRIPE";
   const identityStatus = identityCheck?.status === "PASS" ? "MATCH // CONTRACTOR IDENTITY" : "SUSPECT // CONTRACTOR VINYL";
@@ -103,6 +107,7 @@ export function generateReceipts(
     timestamp: "01:38:42 EDT",
     confidence: confidenceForCamera("CAM//01", checkpointBranch, snapshot.score),
     coverImage: snapshot.coverImage,
+    vehicleLivery: historicalVehicleLivery,
     coverLockedAt: snapshot.coverLockedAt,
     analysisScore: snapshot.score,
     status: "CONFIRMED",
@@ -122,6 +127,7 @@ export function generateReceipts(
     timestamp: "01:44:19 EDT",
     confidence: confidenceForCamera("CAM//02", checkpointBranch, snapshot.score),
     coverImage: snapshot.coverImage,
+    vehicleLivery: historicalVehicleLivery,
     coverLockedAt: snapshot.coverLockedAt,
     analysisScore: snapshot.score,
     status: "CORRELATED",
@@ -141,6 +147,7 @@ export function generateReceipts(
     timestamp: "01:52:08 EDT",
     confidence: confidenceForCamera("CAM//03", checkpointBranch, snapshot.score),
     coverImage: snapshot.coverImage,
+    vehicleLivery: historicalVehicleLivery,
     coverLockedAt: snapshot.coverLockedAt,
     analysisScore: snapshot.score,
     status: "WATCHLIST",

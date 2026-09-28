@@ -262,6 +262,9 @@ export default function App() {
   );
 
   const activeVehicleLivery = activePackage?.vehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY;
+  const historicalVehicleLivery = missionState?.snapshot?.vehicleLivery
+    ?? missionState?.snapshot?.disguisePackage?.vehicleLivery
+    ?? DEFAULT_CLEAN_VEHICLE_LIVERY;
   const cover01VehicleLivery = cover?.disguisePackage?.vehicleLivery ?? null;
   const cover02VehicleLivery = cover02?.disguisePackage?.vehicleLivery ?? null;
   // Blank vinyl starter panel or existing cover data URL for the forgery bay.
@@ -881,6 +884,7 @@ export default function App() {
                 onViewReceipt={() => setStage("final-run-receipt")}
                 hasReceipt={runReceipt !== null}
                 receipts={receipts}
+                historicalVehicleLivery={historicalVehicleLivery}
                 receiptsSeen={receiptState.cameraReceiptsSeen}
                 coverBurned={receiptState.cover01Burned}
                 onCompleteReceiptReview={() => {

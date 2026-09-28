@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import type { CameraReceipt } from "../world/receipts";
 import checkpointPlate from "../assets/world/port-vice-checkpoint.png";
-import serviceVehicleCutout from "../assets/world/service-vehicle.png";
+import { DEFAULT_CLEAN_VEHICLE_LIVERY } from "../lib/disguisePackage";
+import type { VehicleLivery } from "../lib/vehicleLivery";
+import { VehicleLiveryProjection } from "./VehicleLiveryProjection";
 
 interface CctvReviewProps {
   receipts: readonly [CameraReceipt, CameraReceipt, CameraReceipt];
+  /** Frozen mission livery fallback for legacy receipts without this field. */
+  historicalVehicleLivery?: VehicleLivery | null;
   alreadyBurned: boolean;
   onCompleteReview: () => void;
   onClose: () => void;
@@ -12,6 +16,7 @@ interface CctvReviewProps {
 
 export default function CctvReview({
   receipts,
+  historicalVehicleLivery,
   alreadyBurned,
   onCompleteReview,
   onClose,
@@ -94,17 +99,13 @@ export default function CctvReview({
                   <div className="cm-cctv-time-tag">{current.timestamp}</div>
                 </div>
 
-                {/* Composited Vehicle with exact mission COVER//01 snapshot */}
+                {/* Historical mission sedan, rendered through the canonical livery projection. */}
                 <div className={`cm-cctv-vehicle cm-cctv-vehicle--${current.cameraAngle}`}>
-                  <img
-                    src={serviceVehicleCutout}
-                    alt="Target vehicle"
-                    className="cm-cctv-vehicle-img"
-                    draggable={false}
+                  <VehicleLiveryProjection
+                    livery={current.vehicleLivery ?? historicalVehicleLivery ?? DEFAULT_CLEAN_VEHICLE_LIVERY}
+                    angle="mission"
+                    className="cm-cctv-vehicle-projection"
                   />
-                  <div className="cm-cctv-vehicle-cover">
-                    <img src={current.coverImage} alt="Vehicle disguise" draggable={false} />
-                  </div>
                 </div>
               </div>
 

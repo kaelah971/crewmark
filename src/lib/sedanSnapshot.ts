@@ -8,6 +8,10 @@ export type SedanSnapshotAngle = "yard" | "mission";
 // Memory cache for rendered sedan snapshot data URLs
 const SNAPSHOT_CACHE = new Map<string, string>();
 
+export function getSedanSnapshotKey(livery: VehicleLivery, angle: SedanSnapshotAngle): string {
+  return JSON.stringify({ angle, livery });
+}
+
 // The GLB's wheel bottoms sit just below the scene ground plane. Keep the
 // canonical car lifted by that measured amount so the wheels, not the sills,
 // meet the contact shadow in every 2.5D projection.
@@ -354,7 +358,7 @@ class OffscreenSedanRenderer {
   }
 
   public async renderSnapshot(livery: VehicleLivery, angle: SedanSnapshotAngle): Promise<string> {
-    const cacheKey = `${angle}-${livery.templateId ?? "custom"}-${livery.bodyBaseColor}-${livery.secondaryColor}-${livery.accentColor}`;
+    const cacheKey = getSedanSnapshotKey(livery, angle);
     if (SNAPSHOT_CACHE.has(cacheKey)) {
       return SNAPSHOT_CACHE.get(cacheKey)!;
     }
